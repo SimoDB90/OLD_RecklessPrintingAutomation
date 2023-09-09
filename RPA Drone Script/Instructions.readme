@@ -2,22 +2,22 @@
 -----------
 
 "Robotic Printing Automation" by Reckless
-Current Version: V 3.4.0
+Current Version: V 3.5.0
 Script == DRONE
 Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 
--------------Changelog V 3.4.0 (09/08/2023)-------------------------------------------
--New Rotor Controller released;
--------------Changelog V 3.3.0 (07/08/2023)--------------------------------------------
--Heavy clean up of the code from useless computations in order to improve performance;
--Rework of start and toggle commands. See guide;
--Add an oprional LCD called .ACTIVE to print infos about active welded block and printing in general;
-------------Changelog V 3.2.5 (03/08/2023)--------------------------------------------
--Improved the Logics to handle the rotor's Speed;
--Added a rotor control to help welding some missed blocks
--Polished the code;
--Add several verbose checks , to catch more exceptions, point out when you have to run setup or have different versions of script
--Add a "changelog" command. Run "changelog -off" to delete it from the Status LCD
-------------Changelog V 3.2.4 (31/07/2023)--------------------------------------------
--Polished the code;
--Add several verbose checks , to catch more exceptions, point out when you have to run setup or have different versions of script
+-------------Changelog V 3.5.0 (09/09/2023)-------------------------------------------
+-Slow mode added: reduce tick rate and disabled alignment;
+-Fixed the printing extimated time on the "ACTIVE WELDING" LCD;
+-Added the QoL command: untag_d x, to easily delete the wanted tag from the drone;
+-Added the QoL command: untag_s x, to easily delete the wanted tag from the station;
+-Added the QoL command: init_d, to easily read the Custom Data of the drone and tag it;
+-Fixed some bugs in case you don't have tagged the STATUS LCD;
+-Improved the rotor's speed function for a faster printing;
+
+------------Needed blocks for Drone---------------------------------------------
+1)Cockpit
+2)Group of backward thrusters
+3)Projector
+4)Antenna
+5)PB to put the script
