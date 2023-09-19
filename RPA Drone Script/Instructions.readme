@@ -2,18 +2,12 @@
 -----------
 
 "Robotic Printing Automation" by Reckless
-Current Version: V 3.5.0
+Current Version: V 3.5.1
 Script == DRONE
 Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 
--------------Changelog V 3.5.0 (09/09/2023)-------------------------------------------
--Slow mode added: reduce tick rate and disabled alignment;
--Fixed the printing extimated time on the "ACTIVE WELDING" LCD;
--Added the QoL command: untag_d x, to easily delete the wanted tag from the drone;
--Added the QoL command: untag_s x, to easily delete the wanted tag from the station;
--Added the QoL command: init_d, to easily read the Custom Data of the drone and tag it;
--Fixed some bugs in case you don't have tagged the STATUS LCD;
--Improved the rotor's speed function for a faster printing;
+-------------Changelog V 3.5.1 (18/09/2023)-------------------------------------------
+-Added the option to turn off the welders during the drone's movement
 
 ------------Needed blocks for Drone---------------------------------------------
 1)Cockpit

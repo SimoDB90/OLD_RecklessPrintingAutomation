@@ -30,12 +30,12 @@ namespace IngameScript
     {
         /// <summary>
         /// "Robotic Printing Automation" by Reckless
-        /// Current Version: V 3.5.0
+        /// Current Version: V 3.5.1
         /// Script == Drone
         /// Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
         /// </summary>
 
-        readonly string droneVersion = "V: 3.5.0";
+        readonly string droneVersion = "V: 3.5.1";
         readonly MyIni _ini = new MyIni();
         double Wait;
         double ImWait = 7;
@@ -96,6 +96,8 @@ namespace IngameScript
         const double firstRotationTimeMult = 0.3;
         //slowmode-->no alignment, update runtime 100 ticks
         bool slowMode = false;
+        //weld while moving --> during movement, welders are off
+        bool weldWhileMoving = false;
 
         //lcd printing strings
         readonly string[] lcd_printing_spinners = new string[] { "P", "PR", "PRI", "PRIN", "PRINT", "PRINTI", "PRINTIN", "PRINTING", "PRINTING.", "PRINTING..." };
@@ -111,7 +113,7 @@ namespace IngameScript
         const string lcd_h2_level = "         TUG H2 LEVEL";
         const string lcd_proj_level =   "     PROJECTION LEVEL";
         readonly string lcd_header;
-        bool imMoving = false;
+        bool imMoving = false; //check if the drone is moving
         //string printingStatus;
         int totBlocks;
         bool imProjecting;
@@ -521,6 +523,16 @@ namespace IngameScript
             {
                 Wait = ImWait;
                 firstRotation = false;
+                if (!weldWhileMoving)
+                {
+                    weldersToggleOn = false;
+                    WeldersToggle(weldersToggleOn);
+                }
+            }
+            if(!imMoving)
+            {
+                weldersToggleOn = true;
+                WeldersToggle(weldersToggleOn);
             }
             if (!slowMode) { Runtime.UpdateFrequency = UpdateFrequency.Update10; }
             else if(slowMode) { Runtime.UpdateFrequency = UpdateFrequency.Update100; }
@@ -817,7 +829,7 @@ namespace IngameScript
                 }
 
                 //setup commands
-                if (myIGCMessage.Data is MyTuple<double, float, double, float, MyTuple<double, bool>, MyTuple<MatrixD, int>>)
+                if (myIGCMessage.Data is MyTuple<double, float, double, float, MyTuple<double, bool, bool>, MyTuple<MatrixD, int>>)
                 {
                     printing = false;
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("droneVersion", droneVersion));
@@ -828,24 +840,26 @@ namespace IngameScript
                     Stop(ThrusterGroup);
                     checkDistance = false;
                     firstRotation = false;
-                    var tuple = (MyTuple<double, float, double, float, MyTuple<double, bool>, MyTuple<MatrixD, int>>)myIGCMessage.Data;
+                    var tuple = (MyTuple<double, float, double, float, MyTuple<double, bool, bool>, MyTuple<MatrixD, int>>)myIGCMessage.Data;
                     ImWait = tuple.Item1;
                     DynamicSpeed = tuple.Item2;
                     DroneMovDistance = tuple.Item3;
                     RotorSpeed = tuple.Item4;
                     maxDistanceStop = tuple.Item5.Item1;
                     slowMode = tuple.Item5.Item2;
+                    weldWhileMoving = tuple.Item5.Item3;
                     rotorMatrix = tuple.Item6.Item1;
                     welderSign = tuple.Item6.Item2;
                     rotorPosition = rotorMatrix.Translation;
                     rotorOrientation = rotorMatrix.GetOrientation();
                     string output_tuple = $"       SETUP COMPLETED       \n{lcd_divider}\n" +
-                        $"{"|Slow Mode", -16} {"= " + slowMode + ";", -17}\n" +
-                        $"{"|Wait",-16} {"= " + ImWait + " seconds;",-17}\n" +
-                        $"{"|DroneMovement",-16} {"= " + DroneMovDistance + " meters;",5}\n" +
-                        $"{"|Rotor Speed",-16} {"= " + RotorSpeed + " RPM;",-19}\n" +
-                        $"{"|Dynamic Speed",-16} {"= " + DynamicSpeed + " RPM;",8}\n" +
-                        $"{"|Safety Distance",-16} {"= " + maxDistanceStop + " meters",-15}";
+                        $"{"|Slow Mode", -17} {"= " + slowMode + ";", -16}\n" +
+                        $"{"|Weld in Movement",-17} {"= " + weldWhileMoving + ";",-16}\n" +
+                        $"{"|Wait",-17} {"= " + ImWait + " seconds;",-16}\n" +
+                        $"{"|DroneMovement",-17} {"= " + DroneMovDistance + " meters;",-16}\n" +
+                        $"{"|Rotor Speed",-17} {"= " + RotorSpeed + " RPM;",-16}\n" +
+                        $"{"|Dynamic Speed",-17} {"= " + DynamicSpeed + " RPM;",-16}\n" +
+                        $"{"|Safety Distance",-17} {"= " + maxDistanceStop + " meters",-16}";
                     Echo(output_tuple);
                     IGC.SendBroadcastMessage(BroadcastTag, output_tuple);
                 }
@@ -879,9 +893,8 @@ namespace IngameScript
             }
             else
             {
-                string myString = "weldersToggle";
                 weldersToggleOn = false;
-                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>(myString, weldersToggleOn));
+                WeldersToggle(weldersToggleOn);
                 double pitch, yaw, roll;
                 //the desiredForward and UP are the rotor's: the cockpit of the tug will be aligned with the downward direction of the rotor!!
                 var desiredForward = -rotorOrientation.Up;
@@ -1101,8 +1114,9 @@ namespace IngameScript
             $"{"|Grid Total Mass",-27}" + $"{"= " + Math.Round(mass / 1000f, 0) + " tons;\n"}" +
             $"{"|Rotor Speed", -27}" + $"{"= " +Math.Round(newRotorSpeed, 2) + " RPM;\n"}" +
             $"{lcd_divider}\n" +
-            $"Toggle After Print: {toggleAfterFinish}\n" +
-            $"Slow Mode: {slowMode}\n" +
+            $"{"Toggle After Print:",-27}" + $"{"= " + toggleAfterFinish};\n" +
+            $"{"Slow Mode:",-27}" + $"{"= " + slowMode};\n" +
+            $"{"Weld in Movement:",-27}" + $"{"= " + weldWhileMoving};\n" +
             $"{lcd_divider}\n" + $"{lcd_h2_level+": " + Math.Round(tankLevel * 100, 2) + "%      \n"}" +
             //tank multiplier and totBlockMultiplier are multiplicated by 3 cause the string is long 32 digit
             $"{"0% " + string.Concat(Enumerable.Repeat("=", tankMultiplier * 3)), -33}" + $"{" 100%", 4}\n" +
@@ -1307,7 +1321,7 @@ namespace IngameScript
                         checkDistance = false;
                         firstRotation = false;
                         weldersToggleOn = false;
-                        IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("weldersToggle", weldersToggleOn));
+                        WeldersToggle(weldersToggleOn);
                         IGC.SendBroadcastMessage(BroadcastTag, "Drone is aligned.");
                         foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
                         timeStep = 0;
@@ -1317,7 +1331,7 @@ namespace IngameScript
                         if (!slowMode) { Runtime.UpdateFrequency = UpdateFrequency.Update10; }
                         else if (slowMode) { Runtime.UpdateFrequency = UpdateFrequency.Update100; }
                         weldersToggleOn = true;
-                        IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("weldersToggle", weldersToggleOn));
+                        WeldersToggle(weldersToggleOn);
                         IGC.SendBroadcastMessage(BroadcastTag, "Drone is aligned.");
                         foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
                         timeStep = 0;
@@ -1370,6 +1384,11 @@ namespace IngameScript
             return Vector3D.Normalize(a);
         }
 
+        public void WeldersToggle(bool toggle)
+        {
+            string myString = "weldersToggle";
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>(myString, toggle));
+        }
 
     }
 }
