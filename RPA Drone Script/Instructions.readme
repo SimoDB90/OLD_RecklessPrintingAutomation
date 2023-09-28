@@ -2,16 +2,22 @@
 -----------
 
 "Robotic Printing Automation" by Reckless
-Current Version: V 3.5.1
+Current Version: V 3.5.2
 Script == DRONE
 Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 
--------------Changelog V 3.5.1 (18/09/2023)-------------------------------------------
--Added the option to turn off the welders during the drone's movement
+-------------Changelog V 3.5.2 (28/09/2023)-------------------------------------
+-Rename the command "update", with the more intuitive "ignore_all";
+-Added the command "ignore1" to skip only the active block welded (like a mini version of "ignore_all");
+-You can now run the command "init_d" as well from the drone as from the station; 
+-Fixed the ETA (again) and added another ETA (based on the percentage printed);
+-During Initialization of the drone, if you have 1 (and only 1) tank of hydrogen, the tag will be added automatically,
+	otherwise, tag them;
 
 ------------Needed blocks for Drone---------------------------------------------
 1)Cockpit
 2)Group of backward thrusters
 3)Projector
 4)Antenna
-5)PB to put the script
+5)Hydro Tank
+6)PB to put the script
