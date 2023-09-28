@@ -33,131 +33,35 @@ namespace IngameScript
     {
         /// <summary>
         /// "Robotic Printing Automation" by Reckless
-        /// Current Version: V 3.3.0
+        /// Current Version: V 3.5.2
         /// Script == Station
         /// Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
-        ///
-        /// CHANGELOG V 3.3.0 (x/08/2023)
-        /// -Heavy clean up of the code from useless computations in order to improve performance;
-        /// -Rework of start and toggle commands. See guide;
-        /// -Add an oprional LCD called .ACTIVE to print infos about active welded block and printing in general;
-        /// Changelog V 3.2.5 (03/08/2023)
-        /// -Improved the Logics to handle the rotor's Speed;
-        /// -Added a "stuck" status to check when rotor will move backward to weld some missed blocks
-        /// Changelog V 3.2.4 (31/07/2023)
-        /// -Polished the code;
-        /// -Add several verbose checks , to catch more exceptions, point out when you have to run setup or have different versions of script
-        /// -Add a "changelog" command. Run "changelog -off" to delete it from the Status LCD
-        /// Changelog V 3.2.3 (30/07/2023)
-        /// -Added security check if you don't have run setup before starting the print;
-        /// -Added several report in case setup is not completed correctly;
-        /// -caught several exceptions;
-        /// -send to LOG lcd all main problems regarding uncompleted setup;
-        /// Changelog V 3.2.2 (30/07/2023)
-        /// -If the tug is tilted more than 25 degrees, it won't auto align;
-        /// -During the Active Printing, the time will stop, until not a single block is being printed;
-        /// -Wait variable during the printing will blink to point out that printing is in progress;
-        /// -Add a random music to play if sound block is present;
-        /// -Add command "music" to play random music; Add " -off" to turn it off;
-        /// Changelog V 3.2.1 (29/07/2023)
-        /// -Better tuning for aligning portion of the script;
-        /// -Add a check for the scripts version, who detects differences between station's and drone's
-        /// Changelog V 3.2.0 (28/07/2023)
-        /// -Fixed several bugs;
-        /// -Added a check for aligning condition;
-        /// -Now the rotor will stop when a functional block is being printed;
-        /// Changelog V 3.2.0 (28/07/2023)
-        /// -Fixed several bugs;
-        /// -Added a check for aligning condition;
-        /// -Now the rotor will stop when a functional block is being printed; 
-        /// Changelog V 3.1.0 (27/07/2023)
-        /// -Bugs fixed
-        /// -Added an automatic alignment between the tug and the drone for the entire duration of the print
-        /// -Added a new command "align" to force the alignment
-        /// -DRONE ONLY: COCKPIT FORWARD direction must be perpendicular to printers!!!
-        /// -DRONE ONLY: BACKWARD thrusters only used!!
-        /// Changelog V 3.0.5 (25/07/2023)
-        /// Fix welders group setting
-        /// Changelog V 3.0.4 (24/07/2023)
-        /// -Add the tag to the tug's hydrongen tank for a better check on hydro %
-        /// Changelog V 3.0.3 (23/07/2023)
-        /// -"Toggle" now turn off all tools and projs too
-        /// /// Changelog V 3.0.2 (19/07/2023)
-        /// Added Projectioin status, Tug's H2 level and printing percentage
-        /// Changelog V 3.0.1 (19/07/2023)
-        /// Fixed some typos and formattings;
-        /// Changelog V 3.0.0 (17/07/2023)
-        /// Rewritten the hud;
-        /// Added hudlcd functionalitites;
-        /// Added "guide" command for easy reference in game
-        /// Changelog V 2.9 (17/07/2023)
-        /// Add new QoL commands;
-        /// Add sound blocks to Fancy blocks;
-        /// Add Antenna block check;
-        /// Add hudlcd auto added to LCD, and "hudlcd:toggle" as command
-        /// Changelog V 2.8 (10/07/2023)
-        /// QoL Changes:
-        /// All commands are now case insensitive;
-        /// If the script is used for no "SIGMA DRACONIS EXPANSE Server" there should be no more errors;
-        /// If you use the standard configuration for the drone (using backward thrusters to move away from the welders, 1 cockpit, 1 projector), you don't need to add the tag [RPA];
-        /// If you use the standard configuration for the station (only 1 rotor and all welders for printing), you have to put the tag [RPA] only for the other needed blocks;
-        /// Changelog V 2.7 (01/07/2023)
-        /// Add a new command: "toggle" that will toggle on every blocks of the tug's grid, except for Epstein drivers (Hydrazine are toggled on thou)
-        /// Changelog V 2.6 (29/06/2023)
-        /// Add a check to the block's integrity: now, every block has to reach 100% integrity before the scripts move the Drone back
-        /// Changelog V 2.5 (18/06/2023)
-        /// Deleted static printing;
-        /// fixed bug that didn't allow to change distance movement of the drone after have finished the section;
-        /// Changelog V 2.4 (01/06/2023):
-        /// Fixed a bug with Safety Distance that was not calculated;
-        /// Added the "DroneMovementDistance(meters)" in customData, in order to set the meters the tug thrusts in every iteration (stopping distance is more or less 1/3 of the thrusting distance);
-        /// Changelog V 2.3 (31/05/2023):
-        /// Added the "update" command, to set to ignore remaning unwelded blocks, in order to continue the welding
-        /// Added a "forced stop" if the drone goes too far from starting point
-        /// Added the optional group with [RPA-Fancy] to toggle on/off lcd,lights and welders during start and stop
-        /// Fixed some minor bugs
-        /// Changelog V 2.2 (05/05/2023):
-        /// After several ships printed, i fixed some minor bugs and tuned some numbers;
-        /// Change the Torque value of the rotor to 40 MN to have a better acceleration;
-        /// Finally understood how to update scripts instead to delete-reupload.From now on, this shouldn't happen anymore;
-        /// Changelog V 2.1 (27/04/2023):
-        /// Fix bug for Drone's moving distance (it moves twice the wanted distance)
-        /// Chngelog V 2.0 (26/04/2023):
-        /// Fix bug of rotor speed;
-        /// Added rotor speed to log and lcd panel
-        /// Fix bug when setup command was ran, that forced the drone to start the process
-        /// Get rid of naming conventio, and add tag requirment to the blocks/groups.Default is [RPA], but you can always change it in CustomData of the Station's script;
-        /// All logs should be now polished, meaning, if you forgot any tag or block, you'll see in the PB log or the station's LCD panel; In general, more informations are printed;
-        /// All variables that can be changed in CustomData of the Drone, have been moved in the Station's PB CustomData, so, if you want to change any of them, youu don't need anymore to reach the Drone's PB (Engineers are lazy!);
-        /// Station's PB CustomData have more variables: RotorSpeed; DynamicRotorCheck; DynamicSpeed (see Station Setup chapter);
-        /// A new configuration is possible: DynamicRotorCheck, to have better chance to cover all blocks(See Tuning Chapter);
-        /// Added list of commands in the Station's PB log;
-        /// 
-        /// Needed blocks for station:
-        /// 1)LCD for log
-        /// 2)Rotor
-        /// 3)Antenna
-        /// 4)PB to put the script
-        /// 5)OPTIONAL: Put in a single group (with the tag: [RPA-Fancy]): lights, LCDs and 1 sound block. Will be toggle on or off after start and stop;
-        /// 6)OPTIONAL: 1 LCD for Status
         /// </summary>
 
-        readonly string stationVersion = "V: 3.3.0";
+        readonly string stationVersion = "V: 3.5.2";
         const string lcd_changelog =
-            "\nCHANGELOG VERSION 3.3.0:\n" +
-            "-Heavy clean up of the code from useless computations\nin order to improve performance;" +
-            "-Rework of start and toggle commands. See guide" +
-            "-Add an oprional LCD called .ACTIVE\nto print infos about active welded block and printing in general;" +
             "\n--------------------------------\n" +
-            "\nCHANGELOG VERSION 3.2.5:\n" +
-            "-Improved the Logics to handle the rotor's Speed;\n" +
-            "-Added a rotor control to help welding process\n" +
-            "--------------------------------\n" +
-            "CHANGELOG OLD VERSION 3.2.4:\n" +
-            "-Polished the code;\n" +
-            "-Add several verbose checks, to catch more exceptions,\n point out when you have to run setup\n or have different versions of script;\n" +
-            "-Add a changelog command. Run changelog -off to delete it from the Status LCD;\n" +
-            "--------------------------------\n";
+            "CHANGELOG VERSION 3.5.2:\n" +
+            "-Rename the command \"update\", with the more intuitive \"ignore_all\";\n" +
+            "-Added the command \"ignore1\" to skip only the active block welded\n(like a mini version of \"ignore_all\");\n" +
+            "-You can now run the command \"init_d\" as well from the drone\nas from the station;\n" +
+            "-Fixed the ETA (again) and added another ETA\n (based on the percentage printed);\r\n" +
+            "-During Initialization of the drone, if you have 1 (and only 1) tank of hydrogen,\n the tag will be added automatically,\r\n\totherwise, tag them;" +
+            "\n--------------------------------\n+" +
+            "\nCHANGELOG VERSION 3.5.1:\n" +
+            "-Added the option to turn off the welders\nduring the drone's movement" +
+            "\n--------------------------------\n"+
+            "CHANGELOG VERSION 3.5.0:\n" +
+            "-Slow mode added (reduce ticks rate, alignment turned off);\n" +
+            "-Fixed the printing extimated time on the \"ACTIVE WELDING\" LCD;\n" +
+            "-Fixed STATUS LCD for blocks with long names;\n" +
+            "-Added the QoL command: \"untag_d x\", to easily delete the wanted tag from the drone;\n" +
+            "-Added the QoL command: \"untag_s x\", to easily delete the wanted tag from the station;\n" +
+            "-Added the QoL command: init_d, to easily read the Custom Data of the drone and tag it;\n" +
+            "-Fixed some bugs in case you don't have tagged the STATUS LCD;\n" +
+            "-Improved the rotor's speed function for a faster printing;" +
+            "\n--------------------------------\n";
+
         string droneVersion;
         bool correctVersion = false;
         bool setupAlreadySent = false;
@@ -176,15 +80,22 @@ namespace IngameScript
 
         readonly List<IMyShipWelder> WelderList = new List<IMyShipWelder>();
         readonly List<IMyTextPanel> LcdList = new List<IMyTextPanel>();
-        //Fancy stuff
+        
+        //stuff for rotor control
+        double farestWelderDistance=0;
+        IMyShipWelder farestWelder;
+        double welderAngle = 0;//angle between projected farest welder and rotor
+        int welderSign; //to check is parallel or antiparallel to forward or right
+        bool welder_forward; //if welder is oriented as the rotor.Forward
+        bool welder_right; // if welder is oriented as the rotor.right
+
+        //stuff for Fancy Group
         readonly List<IMySoundBlock> FancySoundList = new List<IMySoundBlock>();
         readonly List<IMyTextPanel> FancyLCDList = new List<IMyTextPanel>();
         readonly List<IMyLightingBlock> FancyLightList = new List<IMyLightingBlock>();
         readonly List<IMyRadioAntenna> antennaList = new List<IMyRadioAntenna>();
-
-        IMySoundBlock soundBlock;
-
         const string TAGFancy = "[RPA-Fancy]";
+        IMySoundBlock soundBlock;
         IMyTextPanel LCDLog;
         IMyTextPanel LCDStatus;
         IMyTextPanel LCDActive;
@@ -194,9 +105,11 @@ namespace IngameScript
         const string activePrinterLCD = ".ACTIVE";
         bool statusLCDFound=false;
         bool activeLCDFound = false;
+        bool activation = false; //received from the drone to turn on and off all stuff
         /// <Rotor
         readonly List<IMyMotorAdvancedStator> RotorList = new List<IMyMotorAdvancedStator>();
         IMyMotorAdvancedStator Rotor;
+        IMyMotorAdvancedRotor rotorHead;
 
         //CD Variable Creation
         const float DynamicSpeedDefault = 25f;
@@ -209,6 +122,12 @@ namespace IngameScript
         //max movement of the drone
         const double DroneMovDistanceDefault = 1.7;
         double DroneMovDistanceCustom;
+        //slow mode
+        const bool slowModeDefault = false;
+        bool slowModeCustom;
+        // welde while moving bool
+        const bool weldWhileMovingDefault = false;
+        bool weldWhileMovingCustom;
         /// set the position of the rotor in order to retrieve the distance between the rotor and the tug to safety stop 
         MatrixD rotorMatrix = new MatrixD();
         //commands:
@@ -226,7 +145,8 @@ namespace IngameScript
             $"[setup: send CustomData to Drone\n\n" +
             $"start x y z -toggle: start the process;\nadd name of blocks as arguments\nto ignore them during printing\nAdd -toggle if you want to toggle\n    whence finished;\n\n" +
             $"stop: stop the process;\n" +
-            $"update: force the weld even\n with missing TB;\n\n" +
+            $"ignore_all: force the weld even\n with missing TB;\n\n" +
+            $"ignore1: skip the active printed block\n\n" +
             lcd_divider + "\n" +
             $"Utility commands:\n" +
             lcd_divider + "\n" +
@@ -243,15 +163,19 @@ namespace IngameScript
             $"rotor_ws x y: changes \nDynamiSpeed(RPM)-RotorSpeed(RPM);\n\n" +
             $"drone_move x: changes \nDroneMovementDistance(meters);\n\n" +
             $"max_distance x: changes \nMaxDistanceStop(meters);\n\n" +
-            $"waiting x: changes the Wait;]\n\n" +
-            $"music -off: play a random music\nAdd -off if want music to stop";
+            $"waiting x: changes the Wait;\n\n" +
+            $"music -off: play a random music\nAdd -off if want music to stop\n\n" +
+            $"untag_d x: where x is the tag you\nwant to remove from the drone;\n\n" +
+            $"untag_s x: where x is the tag you\nwant to remove from the station;\n\n" +
+            $"init_d: read the CD of the drone\nand add the tag to the blocks";
 
         readonly string compact_commands =
             lcd_divider + "\n" +
             $"[setup\n" +
             $"start x y ... -toggle\n" +
             $"stop\n" +
-            $"update\n" +
+            $"ignore_all\n" +
+            $"ignore1\n" +
             lcd_divider + "\n" +
             $"Utility commands:\n" +
             lcd_divider + "\n" +
@@ -268,8 +192,11 @@ namespace IngameScript
             $"rotor_ws x y\n" +
             $"drone_move x\n" +
             $"max_distance x\n" +
-            $"waiting x;]\n" +
-            $"music -off";
+            $"waiting x;\n" +
+            $"music -off\n" +
+            $"untag_d\n" +
+            $"untag_s;\n" +
+            $"init_d]";
 
         Color lcd_font_colour = new Color(30, 144, 255, 255);
         readonly string[] lcd_spinners = new string[] { "-", "\\", "|", "/" };
@@ -282,6 +209,7 @@ namespace IngameScript
         readonly string lcd_header;
         readonly string lcd_printing_version;
         readonly string header;
+        string stuckStatus; //message for status of welder
 
         //debug LCD
         readonly List<IMyTextPanel> LCDDebug = new List<IMyTextPanel>();
@@ -318,6 +246,8 @@ namespace IngameScript
             //get and set for customdata
             bool wasParsed = _ini.TryParse(Me.CustomData);
             TagCustom = _ini.Get("data", "TAG").ToString(TagDefault);
+            slowModeCustom = _ini.Get("data", "SlowMode").ToBoolean(slowModeDefault);
+            weldWhileMovingCustom = _ini.Get("data", "WeldWhileMoving").ToBoolean(weldWhileMovingDefault);
             WaitingCustom = _ini.Get("data", "Wait").ToDouble(WaitingDefault);
             DroneMovDistanceCustom = _ini.Get("data", "DroneMovementDistance(meters)").ToDouble(DroneMovDistanceDefault);
             RotorSpeedCustom = _ini.Get("data", "RotorSpeed").ToSingle(RotorSpeedDefault);
@@ -330,6 +260,8 @@ namespace IngameScript
             }
             // Set the values to make sure they exist. They could be missing even when parsed ok.
             _ini.Set("data", "TAG", TagCustom);
+            _ini.Set("data", "SlowMode", slowModeCustom);
+            _ini.Set("data", "WeldWhileMoving", weldWhileMovingCustom);
             _ini.Set("data", "Wait", WaitingCustom);
             _ini.Set("data", "DroneMovementDistance(meters)", DroneMovDistanceCustom);
             _ini.Set("data", "RotorSpeed", RotorSpeedCustom);
@@ -349,7 +281,7 @@ namespace IngameScript
             commandDict["stop"] = Stop;
             commandDict["projector"] = Projector;
             commandDict["skip"] = Skip;
-            commandDict["update"] = Update;
+            commandDict["ignore1"] = IgnoreOne;
             commandDict["setup"] = Setup;
             commandDict["toggle"] = Toggle;
             commandDict["rotor_ws"] = Rotor_ws;
@@ -361,7 +293,22 @@ namespace IngameScript
             commandDict["align"] = Align;
             commandDict["music"] = Music;
             commandDict["changelog"] = Changelog;
-            //commandDict["untag_d"] = Untag_d;
+            commandDict["ignore_all"] = IgnoreAll;
+            commandDict["untag_d"] = UntagDrone;
+            commandDict["untag_s"] = UntagStation;
+            commandDict["init_d"] = InitDrone;
+        }
+
+        public void IgnoreAll()
+        {
+            IGC.SendBroadcastMessage(BroadcastTag, "ignore_all");
+            Echo($"Sending message: ignore_all");
+        }
+        public void InitDrone()
+        {
+            IGC.SendBroadcastMessage(BroadcastTag, "init_d");
+            LCDLog.WriteText($"{header} \nInit Drone: blocks tagged as drone's CD");
+            Echo($"Sending message: init_d\n{commands}");
         }
         public void Changelog()
         {
@@ -370,12 +317,12 @@ namespace IngameScript
             {
                 if (changelogOFF)
                 {
-                    LCDStatus.WriteText(centreText(lcd_header, 32));
+                    LCDStatus.WriteText(CentreText(lcd_header, 32));
                 }
                 else
                 {
                     string changelog = lcd_header + "\n" + lcd_printing_version + lcd_changelog;
-                    LCDStatus.WriteText(centreText(changelog, 32));
+                    LCDStatus.WriteText(CentreText(changelog, 32));
                 }
             }
             catch { }
@@ -469,11 +416,11 @@ namespace IngameScript
                 }
                 if (!resetHUD && LCDStatus.CustomData.Contains("hudlcd"))
                 {
-                    LCDStatus.CustomData =LCDStatus.CustomData.Replace("hudlcd", "hudOFFlcd");
+                    LCDStatus.CustomData = LCDStatus.CustomData.Replace("hudlcd", "hudOFFlcd");
                 }
                 else if (!resetHUD && LCDStatus.CustomData.Contains("hudOFFlcd"))
                 {
-                    LCDStatus.CustomData=LCDStatus.CustomData.Replace("hudOFFlcd", "hudlcd");
+                    LCDStatus.CustomData = LCDStatus.CustomData.Replace("hudOFFlcd", "hudlcd");
                 }
                 if (!resetHUD && LCDActive.CustomData.Contains("hudlcd"))
                 {
@@ -511,22 +458,26 @@ namespace IngameScript
                 ImmutableList<string> ignoringBlocksList = startBuilder.ToImmutable();
                 startBuilder.Clear();
                 IGC.SendBroadcastMessage(BroadcastTag, ignoringBlocksList);
+                
                 //Me.CustomData+=($"sent: {ignoringBlocksList.Count}");
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                return;
             }
             else if (!correctVersion)
             {
                 LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
                             $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                return;
             }
         }
 
         public void Stop()
         {
             IGC.SendBroadcastMessage(BroadcastTag, "stop");
+            Rotor.TargetVelocityRPM = 0;
             Echo($"Sending message: stop\n{commands}");
         }
         public void Projector()
@@ -543,28 +494,33 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                return;
             }
             else if (!correctVersion)
             {
                 LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" +
                             $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                return;
             }
         }
-        public void Update()
+        //skip the actual block been welded and delete it from the list of blocks to weld
+        public void IgnoreOne()
         {
             if (correctVersion && setupAlreadySent)
             {
-                IGC.SendBroadcastMessage(BroadcastTag, "update");
-                Echo($"Sending message: update\n{commands}"); 
+                IGC.SendBroadcastMessage(BroadcastTag, "ignore1");
+                Echo($"Sending message: ignore1\n{commands}"); 
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                return;
             }
             else if (!correctVersion)
             {
                 LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" + $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                return;
             }
         }
         public void Toggle()
@@ -584,23 +540,20 @@ namespace IngameScript
             IGC.SendBroadcastMessage(BroadcastTag, toggleList);
             Echo($"Sending message: toggle\n{commands}");
         }
-        //public void Untag_d()
-        //{
-        //    IGC.SendBroadcastMessage(BroadcastTag, "untag_d");
-        //    Echo($"Sending message: untag_d\n" +
-        //        $"{commands}");
-        //}
         public void Setup()
         {
             setupAlreadySent = true;
             CustomData();
-            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<double, float, double, float, double, MatrixD>(
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<double, float, double, float, 
+                MyTuple<double, bool, bool>,
+                MyTuple<MatrixD, int>>(
                 WaitingCustom,
                 DynamicSpeedCustom,
                 DroneMovDistanceCustom,
                 RotorSpeedCustom,
-                maxDistanceStopCustom,
-                rotorMatrix)
+                new MyTuple<double, bool, bool>(maxDistanceStopCustom, slowModeCustom, weldWhileMovingCustom),
+                new MyTuple<MatrixD, int>(
+                rotorMatrix, welderSign))
                 );
             Echo($"Sending message: setup\n{commands}");
         }
@@ -628,12 +581,14 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                return;
             }
             else if (!correctVersion)
             {
                 LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" +
                             $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                return;
             }
         }
         public void Max_distance()
@@ -655,12 +610,14 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                return;
             }
             else if (!correctVersion)
             {
                 LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" +
                             $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                return;
             }
         }
         public void Drone_move()
@@ -682,7 +639,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
             }
             else if (!correctVersion)
             {
@@ -709,7 +666,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
             }
             else if (!correctVersion)
             {
@@ -728,12 +685,42 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
             }
             else if (!correctVersion)
             {
                 LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" +
                             $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+            }
+        }
+        public void UntagDrone()
+        {
+            string s = _commandLine.Argument(0);
+            string tag = _commandLine.Argument(1);
+            MyTuple<string, string> untagTuple = new MyTuple<string, string>(s, tag);
+            IGC.SendBroadcastMessage(BroadcastTag, untagTuple);
+            Echo($"Sending message: {s}\n{commands}");
+        }
+        public void UntagStation()
+        {
+            string tag = _commandLine.Argument(1);
+            List<IMyTerminalBlock> everything = new List<IMyTerminalBlock>();
+            GridTerminalSystem.GetBlocksOfType(everything, x => x.CustomName.Contains(tag));
+            //Echo($"{everything.Count}");
+            if (everything != null || everything.Count > 0)
+            {
+                foreach (var block in everything)
+                {
+
+                    block.CustomName = block.CustomName.Trim();
+                    //block.CustomName = block.CustomName.Replace("." + TagCustom, "");
+                    block.CustomName = block.CustomName.Replace(tag, "");
+                    LCDLog.WriteText($"{header} \nTag: {tag} removed from Station.");
+                }
+            }
+            else
+            {
+                LCDLog.WriteText($"{header} \nNo Tag: {tag} found in Station.");
             }
         }
         public void SetupBlocks()
@@ -843,6 +830,8 @@ namespace IngameScript
                 Rotor.BrakingTorque = RotorTorqueValue;
                 rotorMatrix = Rotor.WorldMatrix;
             }
+            //SETUP ROTORHEAD
+            rotorHead = Rotor.Top as IMyMotorAdvancedRotor;
 
             //WELDERS SETUP
             List<IMyBlockGroup> WeldersGroupList = new List<IMyBlockGroup>();
@@ -896,7 +885,12 @@ namespace IngameScript
             {
                 Echo(groups.Count == 0 ? $"No {TAGFancy} group" : $"Too many groups found: {groups.Count}");
             }
-
+            FarWerlder(); //determine what is the farest welder from the rotor 
+            ///check the orientation of the farest welder: aligned with forward or backward?
+            ///is aligned with right or left of the rotor?
+            WelderAngle();
+            //Me.CustomData += welderSign;
+            
             //setup completed
             setupCompleted = true;
         }
@@ -934,14 +928,13 @@ namespace IngameScript
                 }
             }
             
-            
             if ((updateSource & UpdateType.IGC) > 0)
             {
                 ImListening();
             }
         }
         
-        string centreText(string Text, int Width)
+        string CentreText(string Text, int Width)
         {
             int spaces = Width - Text.Length;
             int padLeft = spaces / 2 + Text.Length;
@@ -950,12 +943,12 @@ namespace IngameScript
         public void TextWriting(string text)
         {
             string input = lcd_header + "\n" + text;
-            LCDLog.WriteText(centreText(input, 32));
+            LCDLog.WriteText(CentreText(input, 32));
         }
         public void GuideWriting(string text)
         {
             string input = lcd_header + "\n" + text;
-            LCDStatus.WriteText(centreText(input, 32));
+            LCDStatus.WriteText(CentreText(input, 32));
         }
         public string CommandHeaderCreation()
         {
@@ -986,7 +979,37 @@ namespace IngameScript
                 $"{lcd_divider}";
             return output;
         }
-        
+        /// <summary>
+        /// Find the farest welder from thew rotor to decide the direction
+        /// of the alignment
+        /// </summary>
+        public void FarWerlder()
+        {
+            foreach(var w in WelderList)
+            {
+                var distance = (w.GetPosition() - Rotor.GetPosition()).Length();
+                if(distance> farestWelderDistance)
+                {
+                    farestWelderDistance = distance;
+                    farestWelder = w;
+                }
+}
+            //Me.CustomData+=($"Farest welder: {farestWelderDistance}\nwelder: {farestWelder.CustomName}");
+        }
+        public void WelderAngle()
+        {
+            var dir = (farestWelder.GetPosition() - Rotor.GetPosition());
+            //Echo($"{dir}");
+            var axis = rotorHead.WorldMatrix.Up;
+            dir -= (axis * Vector3D.Dot(axis, dir));
+            var angle_right = Vector3D.Dot(rotorHead.WorldMatrix.Right, dir);
+            var angle_forward = Vector3D.Dot(rotorHead.WorldMatrix.Forward, dir);
+            if (Math.Abs(angle_forward) > 0.1) { welderAngle = angle_forward; welder_forward = true; };
+            //Me.CustomData += $"angle: {welderAngle}--bool forward {welder_forward}\n";
+            if (Math.Abs(angle_right) > 0.1) { welderAngle = angle_right; welder_right = true; }
+            //Me.CustomData += $"angle: {welderAngle}--bool right: {welder_right}\n";
+            welderSign = Math.Sign(welderAngle);
+        }
         public void ImListening()
         {
             while (_myBroadcastListener_station.HasPendingMessage)
@@ -1001,17 +1024,31 @@ namespace IngameScript
                     if (log=="droneVersion")
                     {
                         droneVersion = status;
-                        if(droneVersion == stationVersion)
-                        { LCDStatus.WriteText($"{header} \nDrone Script {droneVersion}\nStation Script {stationVersion}\n\nDETECTED CORRECT VERSIONS\n" +
-                            $"{lcd_divider}\n{lcd_divider}\n" +
-                            $"{lcd_changelog}");
+                        if (droneVersion == stationVersion)
+                        {
                             correctVersion = true;
+                            try
+                            {
+                                LCDStatus.WriteText($"{header} \nDrone Script {droneVersion}\nStation Script {stationVersion}\n\nDETECTED CORRECT VERSIONS\n" +
+                                                $"{lcd_divider}\n{lcd_divider}\n" +
+                                                $"{lcd_changelog}");
+                            }
+
+                            catch
+                            {
+                            }
                         }
-                        else {
-                            LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" +
-                            $"Different Version of scripts found,\n please DONWLOAD THE UPDATED ONE");
-                            LCDStatus.WriteText($"{header}\nDrone Script {droneVersion}\nStation Script {stationVersion}\n{lcd_divider}");
+                        else
+                        {
                             correctVersion = false;
+                            try
+                            {
+                                LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" +
+                                    $"Different Version of scripts found,\n please DONWLOAD THE UPDATED ONE");
+                                Echo("Different Version of scripts found,\n please DONWLOAD THE UPDATED ONE");
+                                LCDStatus.WriteText($"{header}\nDrone Script {droneVersion}\nStation Script {stationVersion}\n{lcd_divider}");
+                            }
+                            catch { }
                             return;
                         }
                     }
@@ -1026,28 +1063,39 @@ namespace IngameScript
 
                     else 
                     {
-                        string stuckStatus;
-                        string stuckedY = "Stucked... Unstacking soon";
-                        string stuckedN = "Unstucked";
-                        if (Rotor.TargetVelocityRPM!=RotorSpeedCustom && Rotor.TargetVelocityRPM != 0) stuckStatus = stuckedY;
-                        else stuckStatus = stuckedN;
+                        
+                        string stuckedY = "Looking for the Block";
+                        string stuckedN = "Unstuck";
+                        string fastTrip = "Fast rotation";
+                        if (Rotor.TargetVelocityRPM != RotorSpeedCustom && Rotor.TargetVelocityRPM != 0 &&
+                            Rotor.TargetVelocityRPM != DynamicSpeedCustom) stuckStatus = stuckedY;
+                        else if (Rotor.TargetVelocityRPM == RotorSpeedCustom) stuckStatus = stuckedN;
+                        else if (Rotor.TargetVelocityRPM == 0) stuckStatus = "Welding";
+                        else if (Rotor.TargetVelocityRPM == DynamicSpeedCustom) stuckStatus = fastTrip;
                         LCDLog.WriteText($"{HeaderCreation()} \n{log}");
                         LCDStatus.WriteText($"{status}\n{lcd_divider}\n         WELDERS STATUS\n{lcd_divider}\n{stuckStatus}");
+                        //continues stream of rotorHead infos
+                        if (activation)
+                        {
+                            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD>(
+                                                "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix)); 
+                        }
                         Echo(compact_commands);
                     }
                 }
+                //DEBUG LCD
                 if(myIGCMessage_fromDrone.Tag==BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string, string,string, string>)
                 {
                     try
                     {
                         var tuple = (MyTuple<string, string, string, string, string>)myIGCMessage_fromDrone.Data;
-                        string time = tuple.Item1;
+                        string checkTime = tuple.Item1;
                         string name = tuple.Item2;
                         string integrity = tuple.Item3;
                         string newIntegrity = tuple.Item4;
-                        string difference = tuple.Item5;
-                        debug.WriteText($"DEBUG\nStuck Time check: {time}\nBlock Name: {name}\n" +
-                            $"Integrity: {integrity}\nNewIntegrity: {newIntegrity}\ndifference: {difference}");
+                        string angle = tuple.Item5;
+                        debug.WriteText($"DEBUG\nStuck Time check: {checkTime}\nBlock Name: {name}\n" +
+                            $"Integrity: {integrity}\nNewIntegrity: {newIntegrity}\nAngle: {angle}");
                     }
                     catch
                     { }
@@ -1069,7 +1117,7 @@ namespace IngameScript
                     string myString = tuple.Item1;
                     if (myString == "activation")
                     {
-                        bool activation = tuple.Item2;
+                        activation = tuple.Item2;
                         if (activation)
                         {
                             Rotor.RotorLock = false;
@@ -1104,6 +1152,9 @@ namespace IngameScript
                                 light.Enabled = false;
                             }
                             foreach (var sound in FancySoundList) { sound.Volume = 0f; sound.Enabled = false; }
+                            IGC.DisableBroadcastListener(_myBroadcastListener_station);
+                            _myBroadcastListener_station = IGC.RegisterBroadcastListener(BroadcastTag);
+                            _myBroadcastListener_station.SetMessageCallback(BroadcastTag);
                         }
                     }
                     else if (myString == "weldersToggle")
