@@ -4,18 +4,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 17.5.33627.172
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RPA Printing Drone Script", "RPA Drone Script\RPA Printing Drone Script.csproj", "{1A582AF0-640C-41F5-91E8-587D839BD091}"
-	ProjectSection(ProjectDependencies) = postProject
-		{F8A19780-C0CB-45F8-882E-2AB6B18B4739} = {F8A19780-C0CB-45F8-882E-2AB6B18B4739}
-	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{9C7A558E-2899-49EE-8B69-3742E4320C28}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RPA Printing Station Script", "..\RPA Station Script\RPA Station Script\RPA Printing Station Script.csproj", "{F8A19780-C0CB-45F8-882E-2AB6B18B4739}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RPA Station Script", "..\RPA Station Script\RPA Station Script\RPA Station Script.csproj", "{367B32B9-615A-45E8-85E1-70C07785C3EA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RPA Station Script", "RPA Station Script\RPA Station Script.csproj", "{367B32B9-615A-45E8-85E1-70C07785C3EA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,8 +19,6 @@ Global
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{1A582AF0-640C-41F5-91E8-587D839BD091}.Debug|x64.ActiveCfg = Debug|x64
 		{1A582AF0-640C-41F5-91E8-587D839BD091}.Debug|x64.Build.0 = Debug|x64
-		{F8A19780-C0CB-45F8-882E-2AB6B18B4739}.Debug|x64.ActiveCfg = Debug|x64
-		{F8A19780-C0CB-45F8-882E-2AB6B18B4739}.Debug|x64.Build.0 = Debug|x64
 		{367B32B9-615A-45E8-85E1-70C07785C3EA}.Debug|x64.ActiveCfg = Debug|x64
 		{367B32B9-615A-45E8-85E1-70C07785C3EA}.Debug|x64.Build.0 = Debug|x64
 	EndGlobalSection
