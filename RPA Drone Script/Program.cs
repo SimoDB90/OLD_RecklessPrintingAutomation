@@ -511,7 +511,7 @@ namespace IngameScript
             IMyGasTank Tank;
             Tank = tank[0];
             GridTerminalSystem.GetBlocksOfType(antennaList);
-            if (antennaList==null || antennaList.Count != AntennaCount)
+            if (antennaList==null || antennaList.Count < AntennaCount)
             {
                 Echo("Antenna failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
                 IGC.SendBroadcastMessage(BroadcastTag, "Antenna failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
@@ -1374,7 +1374,7 @@ namespace IngameScript
                 //divided by 60 to convert in minutes
                 totTimeETA = (int)Math.Ceiling((60 * ImWait + averageTime * totBlocks / 20) / 60);
                 ETA_Extimate = (int)Math.Abs(totTimeETA - Math.Ceiling(totTime / 60f));
-                ETA_Perc_based = ((int)(1 / totBlockPercentage*averageTime)/60);
+                ETA_Perc_based = (int)(1 / totBlockPercentage/100)*averageTime/60;
             }
             if (sectionsBuilt <= 2)
             { ETA_Extimate = 10000; }
