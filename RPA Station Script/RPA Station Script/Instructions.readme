@@ -1,0 +1,21 @@
+﻿R e a d m e
+-----------
+
+"Robotic Printing Automation" by Reckless
+Current Version: V 3.3.0
+Script == STATION
+Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
+
+-------------CHANGELOG V 3.3.0 (07/08/2023)--------------------------------------------
+-Heavy clean up of the code from useless computations in order to improve performance;
+-Rework of start and toggle commands. See guide;
+-Add an oprional LCD called .ACTIVE to print infos about active welded block and printing in general;
+------------Changelog V 3.2.5 (03/08/2023)--------------------------------------------
+-Improved the Logics to handle the rotor's Speed;
+-Added a rotor control to help welding some missed blocks
+-Polished the code;
+-Add several verbose checks , to catch more exceptions, point out when you have to run setup or have different versions of script
+-Add a "changelog" command. Run "changelog -off" to delete it from the Status LCD
+------------Changelog V 3.2.4 (31/07/2023)--------------------------------------------
+-Polished the code;
+-Add several verbose checks , to catch more exceptions, point out when you have to run setup or have different versions of script
