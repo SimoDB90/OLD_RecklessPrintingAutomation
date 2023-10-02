@@ -44,6 +44,7 @@ namespace IngameScript
         readonly List<IMyCockpit> CockpitList = new List<IMyCockpit>();
         readonly List<IMyProjector> ProjectorList = new List<IMyProjector>();
         readonly List<IMyThrust> ThrustersList = new List<IMyThrust>();
+        List<IMyThrust> NestedThrusters = new List<IMyThrust>();
         readonly List<IMyRadioAntenna> antennaList = new List<IMyRadioAntenna>();
         readonly List<IMyGasTank> tank = new List<IMyGasTank>();
 
@@ -61,7 +62,7 @@ namespace IngameScript
         readonly float acceleration = 0.4f; //wanted acceleration in m/s^2
 
         string TagCustom;
-        readonly int ThrustersInGroup;
+        int ThrustersInGroup=0;
 
         ///safety distance to force stop
         double maxDistanceStop;
@@ -443,6 +444,14 @@ namespace IngameScript
                 }
                 _ini.Set("Do No Change lines below", "Thrusters", ThrustersList.Count);
             }
+            if (ThrustersList != null && ThrustersList.Count > 0)
+            {
+                ThrustersInGroup = ThrustersList.Count;
+            }
+            if(blockTagged!=null && blockTagged.Count>0)
+            {
+                ThrustersInGroup = blockTagged.Count;
+            }
             Me.CustomData = _ini.ToString();
             //sending the version of the script to the station
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("droneVersion", droneVersion));
@@ -499,6 +508,8 @@ namespace IngameScript
                 IGC.SendBroadcastMessage(BroadcastTag, "Tank failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
                 return;
             }
+            IMyGasTank Tank;
+            Tank = tank[0];
             GridTerminalSystem.GetBlocksOfType(antennaList);
             if (antennaList==null || antennaList.Count != AntennaCount)
             {
@@ -521,6 +532,7 @@ namespace IngameScript
                 IGC.SendBroadcastMessage(BroadcastTag, "Projector failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
                 return;
             }
+            Projector = ProjectorList[0];
             //THRUSTERS CHECK
             GridTerminalSystem.GetBlocksOfType(ThrustersList, t =>
             t.Orientation.Forward == Cockpit.Orientation.Forward
@@ -530,7 +542,7 @@ namespace IngameScript
             if (ThrustersList == null || ThrustersList.Count != ThrustersCount)
             {
                 List<IMyBlockGroup> ThrustersGroupsList = new List<IMyBlockGroup>();
-                List<IMyThrust> NestedThrusters = new List<IMyThrust>();
+                
                 GridTerminalSystem.GetBlockGroups(ThrustersGroupsList, t => t.Name.Contains(TagCustom));
                 if (ThrustersGroupsList != null && ThrustersGroupsList.Count == 1)
                 {
@@ -555,10 +567,22 @@ namespace IngameScript
                     IGC.SendBroadcastMessage(BroadcastTag, "Thrusters failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
                     return;
                 }
+                
+            }
+            if (ThrustersList != null && ThrustersList.Count > 0)
+            {
+                ThrustersInGroup = ThrustersList.Count();
+            }
+            if (NestedThrusters != null && NestedThrusters.Count > 0)
+            {
+                ThrustersInGroup = NestedThrusters.Count();
             }
             //INITIALIZATION NOT REQUIRED
             Echo("Drone setup is correct, no need to initialize");
             IGC.SendBroadcastMessage(BroadcastTag, "Drone setup is correct.\nNo need to initialize");
+            //Echo($"Thrusters in group : {ThrustersInGroup}");
+            //Echo($"NestedThrusters : {NestedThrusters.Count}");
+            //Echo($"ThrustersList : {ThrustersList.Count}");
         }
         public float ConditionalRotorSpeed()
         {
