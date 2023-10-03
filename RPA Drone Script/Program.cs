@@ -1366,18 +1366,15 @@ namespace IngameScript
          {
              int totTimeETA;
              int ETA_Extimate;
-             int ETA = 0;
+             int ETA;
              int ETA_Perc_based;
-             if (sectionsBuilt > 1)
-             {
-                 //extimated time with some semi viable constants, like 60=number of average sections (150 meter long ship)
-                 //totBlocks/20 ratio between functional and armor blocks
-                 //divided by 60 to convert in minutes
-                 totTimeETA = (int)Math.Ceiling((60 * ImWait + averageTime * totBlocks / 20) / 60);
-                 ETA_Extimate = (int)Math.Abs(totTimeETA - Math.Ceiling(totTime / 60f));
-                 ETA_Perc_based = (int)Math.Abs(totTime/60 - Math.Ceiling(1 / totBlockPercentage / 100 * totTime / 60));
-                 ETA = (int)Math.Ceiling(((double)ETA_Extimate + ETA_Perc_based) / 2);
-             }
+            //extimated time with some semi viable constants, like 60=number of average sections (150 meter long ship)
+            //totBlocks/20 ratio between functional and armor blocks
+            //divided by 60 to convert in minutes
+            totTimeETA = (int)Math.Ceiling((60 * ImWait + averageTime * totBlocks / 20) / 60);
+            ETA_Extimate = (int)Math.Abs(totTimeETA - Math.Ceiling(totTime / 60f));
+            ETA_Perc_based = (int)Math.Ceiling(Math.Abs(totTime - (100 / totBlockPercentage) * totTime)/60);
+            ETA = (int)Math.Ceiling(((double)ETA_Extimate + ETA_Perc_based) / 2);
              //PRINT ON ACTIVE LCD
              string activeOutput = $"{lcd_divider}\n          ACTIVE WELDING\n{lcd_divider}\n"
                  + $"{activeWeldedBlockName.CustomName,-26}{Math.Round(newIntegrity * 100, 2),5}%\n" +
@@ -1391,7 +1388,14 @@ namespace IngameScript
                  $"{"Min time",-25}{"= " + minTime + " s",7}\n" +
                  $"{"Average Blocks/section",-24}{"= " + averageBlocks,8}\n" +
                  $"{lcd_divider}\n" +
-                 $"{"ETA",-19}{"= " + ETA + " minutes",13}"
+                 $"{"ETA (EXT+Perc)/2",-19}{"= " + ETA + " minutes",13}\n" +
+                 $"{"ETA_EXT", -19}{"= "+ ETA_Extimate + " minutes",13}\n" + 
+                 $"{"ETA_Perc", -19}{"=  " + ETA_Perc_based + " minutes", 13}\n"
+                 //$"{"totTime",-19}{"= " + totTime + " secs", 13}\n" +
+                 //$"{"blocPerc", -19}{" =" + totBlockPercentage, 13}\n" +
+                 //$"{"1/blockPerc = " + 100 / totBlockPercentage}\n" +
+                 //$"{"1/blockPerc*totTime = " + 100 / totBlockPercentage *totTime}\n" +
+                 //$"{"totTime - su = " + (totTime-( 100 / totBlockPercentage * totTime))}\n"
                  ;
              IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("ActiveWelding", activeOutput));
          }
