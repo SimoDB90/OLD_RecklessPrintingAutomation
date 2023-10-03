@@ -722,19 +722,6 @@ namespace IngameScript
         }
         public void SetupBlocks()
         {
-            //Antenna setup
-            GridTerminalSystem.GetBlocksOfType(antennaList);
-            if (antennaList == null || antennaList.Count == 0)
-            {
-                Echo($"No Antenna found. Please, add one Antenna");
-                IGC.SendBroadcastMessage(BroadcastTag, $"No Antenna found. Please, add one Antenna");
-                return;
-            }
-            var antenna = antennaList[0];
-            antenna.Enabled = true;
-            antenna.EnableBroadcasting = true;
-            antenna.Radius = 1000;
-
             //LCD LOG SETUP
             GridTerminalSystem.GetBlocksOfType(LcdList, x => x.CustomName.Contains(TagCustom + logLCD));
             if (LcdList == null || LcdList.Count > 1 || !LcdList.Any())
@@ -751,6 +738,20 @@ namespace IngameScript
             LCDLog.FontColor = lcd_font_colour;
             LCDLog.FontSize = fontsize;
             if (!LCDLog.CustomData.Contains("hudlcd")) LCDLog.CustomData = defaultHudLcd;
+            //Antenna setup
+            GridTerminalSystem.GetBlocksOfType(antennaList);
+            if (antennaList == null || antennaList.Count == 0)
+            {
+                Echo($"No Antenna found. Please, add one Antenna");
+                TextWriting($"No Antenna found. Please, add one Antenna");
+                return;
+            }
+            var antenna = antennaList[0];
+            antenna.Enabled = true;
+            antenna.EnableBroadcasting = true;
+            antenna.Radius = 1000;
+
+            
             //LCD STATUS SETUP
             try
             {
