@@ -51,7 +51,7 @@ namespace IngameScript
             "-Rename the command \"update\", with the more intuitive \"ignore_all\";\n" +
             "-Added the command \"ignore1\" to skip only the active block welded\n(like a mini version of \"ignore_all\");\n" +
             "-You can now run the command \"init_d\" as well from the drone\nas from the station;\n" +
-            "-Fixed the ETA (again) and added another ETA\n (based on the percentage printed);\r\n" +
+            "-Fixed the ETA (again);\r\n" +
             "-During Initialization of the drone, if you have 1 (and only 1) tank of hydrogen,\n the tag will be added automatically,\r\n\totherwise, tag them;" +
             "\n--------------------------------\n+" +
             "\nCHANGELOG VERSION 3.5.1:\n" +
