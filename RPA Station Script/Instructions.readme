@@ -14,7 +14,7 @@ Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 -Rename the command "update", with the more intuitive "ignore_all";
 -Added the command "ignore1" to skip only the active block welded (like a mini version of "ignore_all");
 -You can now run the command "init_d" as well from the drone as from the station; 
--Fixed the ETA (again) and added another ETA (based on the percentage printed);
+-Fixed the ETA (again);
 -During Initialization of the drone, if you have 1 (and only 1) tank of hydrogen, the tag will be added automatically,
 	otherwise, tag them;
 
