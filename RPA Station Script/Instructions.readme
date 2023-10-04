@@ -2,10 +2,13 @@
 -----------
 
 "Robotic Printing Automation" by Reckless
-Current Version: V 3.5.3
+Current Version: V 3.5.4
 Script == STATION
 Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 
+-------------Changelog 3.5.4 (04/10/2023)----------------------------------
+-Some minor bugs fix;
+-Fix start -toggle command;
 -------------Changelog V 3.5.3 (02/10/2023)----------------------------------
 -Recompiling the Drone' script will now check for blocks setup, rather than initializing it;
 -To initialize the drone, you have to run "init_d" from the station or the drone's PB;
@@ -22,7 +25,7 @@ Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 1)1 LCD "[RPA].LOG"
 2)1 Rotor
 3)Antenna
-4)Welders
+4)1 tagged group of Welders or all welders (no tag)
 5)PB to put the script
 6)OPTIONAL: Put in a single group (with the tag: [RPA-Fancy]): lights, LCDs and 1 sound block. 
 	Will be toggle on or off after start and stop;

@@ -30,12 +30,12 @@ namespace IngameScript
     {
         /// <summary>
         /// "Robotic Printing Automation" by Reckless
-        /// Current Version: V 3.5.3
+        /// Current Version: V 3.5.4
         /// Script == Drone
         /// Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
         /// </summary>
 
-        readonly string droneVersion = "V: 3.5.3";
+        readonly string droneVersion = "V: 3.5.4";
         readonly MyIni _ini = new MyIni();
         double Wait;
         double ImWait = 7;
@@ -795,16 +795,26 @@ namespace IngameScript
                 //check for stopping status (finished printing)
                 if (totRemaining == 0)
                 {
+                    //Echo("1");
                     Runtime.UpdateFrequency = UpdateFrequency.None;
                     Wait = 0;
                     Stop(ThrusterGroup);
                     checkDistance = false;
                     firstRotation = false;
                     activation = false;
+                    printing = false;
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
-                    if (toggleAfterFinish)
-                    { ToggleOn(toggleList.Clear()); }
-                    foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
+                    //Echo("2");
+                    if (toggleList!=null && toggleAfterFinish)
+                    { 
+                        ToggleOn(toggleList.Clear()); 
+                    }
+                    else if(toggleList==null && toggleAfterFinish)
+                    {
+                        toggleList = toggleBuilder.ToImmutable();
+                        ToggleOn(toggleList.Clear());
+                    }
+                    //foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
                     Echo($"Ship Printed!\n{toggleAfterFinish}");
                     IGC.SendBroadcastMessage(BroadcastTag, $"\nShip Printed!\nToggle: {toggleAfterFinish}");
                     return;
@@ -1132,7 +1142,7 @@ namespace IngameScript
         //turn on all blocks
         public void ToggleOn(ImmutableList<string> toggleList)
         {
-            //foreach(var toggle in toggleList)
+            //foreach (var toggle in toggleList)
             //{
             //    Echo($"passing: {toggle}\n");
             //}
@@ -1175,7 +1185,6 @@ namespace IngameScript
                 }
             }
             //Echo($"exlusion: {exclusionBlocks.Count}");
-
 
             try
             {
@@ -1239,8 +1248,6 @@ namespace IngameScript
                     foreach (var proj in allProj)
                     { proj.Enabled = false; }
                 }
-
-
             }
             catch
             {

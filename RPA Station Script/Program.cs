@@ -33,13 +33,16 @@ namespace IngameScript
     {
         /// <summary>
         /// "Robotic Printing Automation" by Reckless
-        /// Current Version: V 3.5.3
+        /// Current Version: V 3.5.4
         /// Script == Station
         /// Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
         /// </summary>
 
-        readonly string stationVersion = "V: 3.5.3";
+        readonly string stationVersion = "V: 3.5.4";
         const string lcd_changelog =
+            "CHANGELOG VERSION 3.5.4 (04/10/2023):\n" +
+            "-Some minor bugs fix;\n" +
+            "-Fix start -toggle command;" +
             "\n--------------------------------\n" +
             "CHANGELOG VERSION 3.5.3 (02/10/2023)\n +" +
             "-Recompiling the Drone' script will now check for blocks setup,\n" +
@@ -53,10 +56,7 @@ namespace IngameScript
             "-You can now run the command \"init_d\" as well from the drone\nas from the station;\n" +
             "-Fixed the ETA (again);\r\n" +
             "-During Initialization of the drone, if you have 1 (and only 1) tank of hydrogen,\n the tag will be added automatically,\r\n\totherwise, tag them;" +
-            "\n--------------------------------\n+" +
-            "\nCHANGELOG VERSION 3.5.1:\n" +
-            "-Added the option to turn off the welders\nduring the drone's movement" +
-            "\n--------------------------------\n";
+            "\n--------------------------------\n+";
 
         string droneVersion;
         bool correctVersion = false;
