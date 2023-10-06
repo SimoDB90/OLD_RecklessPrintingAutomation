@@ -2,10 +2,17 @@
 -----------
 
 "Robotic Printing Automation" by Reckless
-Current Version: V 3.5.4
+Current Version: V 3.6.0
 Script == STATION
 Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 
+-------------Changelog 3.6.0 (X/10/2023)----------------------------------
+-Check for drone's initialization done (otherwise, you can't start printing);
+-Some checks here and there to avoid exceptions;
+-Added some extra logs;
+-Slow Mode improved
+-Added the max Runtime variable (for the server);
+-Added the stop command from Drone too;
 -------------Changelog 3.5.4 (04/10/2023)----------------------------------
 -Some minor bugs fix;
 -Fix start -toggle command;

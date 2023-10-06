@@ -2,10 +2,17 @@
 -----------
 
 "Robotic Printing Automation" by Reckless
-Current Version: V 3.5.4
+Current Version: V 3.5.5
 Script == DRONE
 Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 
+-------------Changelog 3.6.0 (X/10/2023)----------------------------------
+-Check for drone's initialization done (otherwise, you can't start printing);
+-Some checks here and there to avoid exceptions;
+-Added some extra logs;
+-Slow Mode improved
+-Added the max Runtime variable (for the server);
+-Added the stop command from Drone too;
 -------------Changelog 3.5.4 (04/10/2023)----------------------------------
 -Some minor bugs fix;
 -Fix start -toggle command;
@@ -13,7 +20,7 @@ Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 -Recompiling the Drone' script will now check for blocks setup, rather than initializing it;
 -To initialize the drone, you have to run "init_d" from the station or the drone's PB;
 -If the drone is connected when try to initialize it, an exception is risen;
--------------Changelog V 3.5.2 (28/09/2023)-------------------------------------
+-------------Changelog V 3.5.2 (28/09/2023)----------------------------------
 -Rename the command "update", with the more intuitive "ignore_all";
 -Added the command "ignore1" to skip only the active block welded (like a mini version of "ignore_all");
 -You can now run the command "init_d" as well from the drone as from the station; 

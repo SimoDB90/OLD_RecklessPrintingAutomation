@@ -33,13 +33,20 @@ namespace IngameScript
     {
         /// <summary>
         /// "Robotic Printing Automation" by Reckless
-        /// Current Version: V 3.5.4
+        /// Current Version: V 3.6.0
         /// Script == Station
         /// Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
         /// </summary>
 
-        readonly string stationVersion = "V: 3.5.4";
+        readonly string stationVersion = "V: 3.6.0";
         const string lcd_changelog =
+            "CHANGELOG VERSION 3.6.0 (X/10/2023)\r\n" +
+            "-Check for drone's initialization done \n(otherwise, you can't start printing);\r\n" +
+            "-Some checks here and there to avoid exceptions;\r\n" +
+            "-Added some extra logs;\r\n" +
+            "-Added the stop command from Drone too;\n" +
+            "-Slow Mode improved;\n" +
+            "-Added the max Runtime variable (for the server);\n" +
             "CHANGELOG VERSION 3.5.4 (04/10/2023):\n" +
             "-Some minor bugs fix;\n" +
             "-Fix start -toggle command;" +
@@ -49,17 +56,12 @@ namespace IngameScript
             "   rather than initializing it;\n" +
             "-To initialize the drone, you have to run \"init_d\"\n" +
             "from the station or the drone's PB;\n" +
-            "-If the drone is connected when try to initialize it,\nan exception is risen;" +
-            "CHANGELOG VERSION 3.5.2:\n" +
-            "-Rename the command \"update\", with the more intuitive \"ignore_all\";\n" +
-            "-Added the command \"ignore1\" to skip only the active block welded\n(like a mini version of \"ignore_all\");\n" +
-            "-You can now run the command \"init_d\" as well from the drone\nas from the station;\n" +
-            "-Fixed the ETA (again);\r\n" +
-            "-During Initialization of the drone, if you have 1 (and only 1) tank of hydrogen,\n the tag will be added automatically,\r\n\totherwise, tag them;" +
-            "\n--------------------------------\n+";
+            "-If the drone is connected when try to initialize it,\nan exception is risen;"
+            ;
 
         string droneVersion;
         bool correctVersion = false;
+        bool initializedRequired = true;
         bool setupAlreadySent = false;
         readonly MyIni _ini = new MyIni();
         readonly MyCommandLine _commandLine = new MyCommandLine();
@@ -121,6 +123,8 @@ namespace IngameScript
         //slow mode
         const bool slowModeDefault = false;
         bool slowModeCustom;
+        const double maxRTDefault = 0.5; //max runtime that server allows to have per player
+        double maxRTCustom;
         // welde while moving bool
         const bool weldWhileMovingDefault = false;
         bool weldWhileMovingCustom;
@@ -242,13 +246,14 @@ namespace IngameScript
             //get and set for customdata
             bool wasParsed = _ini.TryParse(Me.CustomData);
             TagCustom = _ini.Get("data", "TAG").ToString(TagDefault);
-            slowModeCustom = _ini.Get("data", "SlowMode").ToBoolean(slowModeDefault);
             weldWhileMovingCustom = _ini.Get("data", "WeldWhileMoving").ToBoolean(weldWhileMovingDefault);
             WaitingCustom = _ini.Get("data", "Wait").ToDouble(WaitingDefault);
             DroneMovDistanceCustom = _ini.Get("data", "DroneMovementDistance(meters)").ToDouble(DroneMovDistanceDefault);
             RotorSpeedCustom = _ini.Get("data", "RotorSpeed").ToSingle(RotorSpeedDefault);
             DynamicSpeedCustom = _ini.Get("data", "DynamicSpeed(RPM)").ToSingle(DynamicSpeedDefault);
             maxDistanceStopCustom = _ini.Get("data", "MaxDistanceStop(meters)").ToDouble(maxDistanceStopDefault);
+            slowModeCustom = _ini.Get("data", "SlowMode").ToBoolean(slowModeDefault);
+            maxRTCustom = _ini.Get("data", "MaxServerRuntime(ms)").ToDouble(maxRTDefault);
 
             if (!wasParsed)
             {
@@ -256,13 +261,14 @@ namespace IngameScript
             }
             // Set the values to make sure they exist. They could be missing even when parsed ok.
             _ini.Set("data", "TAG", TagCustom);
-            _ini.Set("data", "SlowMode", slowModeCustom);
             _ini.Set("data", "WeldWhileMoving", weldWhileMovingCustom);
             _ini.Set("data", "Wait", WaitingCustom);
             _ini.Set("data", "DroneMovementDistance(meters)", DroneMovDistanceCustom);
             _ini.Set("data", "RotorSpeed", RotorSpeedCustom);
             _ini.Set("data", "DynamicSpeed(RPM)", DynamicSpeedCustom);
             _ini.Set("data", "MaxDistanceStop(meters)", maxDistanceStopCustom);
+            _ini.Set("data", "SlowMode", slowModeCustom);
+            _ini.Set("data", "MaxServerRuntime(ms)", maxRTCustom);
 
             Me.CustomData = _ini.ToString();
         }
@@ -297,8 +303,31 @@ namespace IngameScript
 
         public void IgnoreAll()
         {
-            IGC.SendBroadcastMessage(BroadcastTag, "ignore_all");
-            Echo($"Sending message: ignore_all");
+            if(correctVersion && setupAlreadySent && !initializedRequired)
+            {
+                IGC.SendBroadcastMessage(BroadcastTag, "ignore_all");
+                Echo($"Sending message: ignore_all");
+            }
+            else if (!setupAlreadySent)
+            {
+                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                DeactivateAll();
+                return;
+            }
+            else if (!correctVersion)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                DeactivateAll();
+                return;
+            }
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
+                return;
+            }
         }
         public void InitDrone()
         {
@@ -434,7 +463,7 @@ namespace IngameScript
         public void Start()
         {
             bool toggleAfterFinish = _commandLine.Switch("toggle");
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 IGC.SendBroadcastMessage(BroadcastTag, "start");
                 string output = $"Sending message: start\n{commands}";
@@ -461,12 +490,21 @@ namespace IngameScript
             else if (!setupAlreadySent)
             {
                 LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                DeactivateAll();
                 return;
             }
             else if (!correctVersion)
             {
                 LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
                             $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                DeactivateAll();
+                return;
+            }
+            else if(initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
                 return;
             }
         }
@@ -484,7 +522,7 @@ namespace IngameScript
         }
         public void Skip()
         {
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 IGC.SendBroadcastMessage(BroadcastTag, "skip");
                 Echo($"Sending message: skip\n{commands}");
@@ -492,19 +530,28 @@ namespace IngameScript
             else if (!setupAlreadySent)
             {
                 LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                DeactivateAll();
                 return;
             }
             else if (!correctVersion)
             {
-                LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" +
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
                             $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                DeactivateAll();
+                return;
+            }
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
                 return;
             }
         }
         //skip the actual block been welded and delete it from the list of blocks to weld
         public void IgnoreOne()
         {
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 IGC.SendBroadcastMessage(BroadcastTag, "ignore1");
                 Echo($"Sending message: ignore1\n{commands}");
@@ -512,11 +559,21 @@ namespace IngameScript
             else if (!setupAlreadySent)
             {
                 LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                DeactivateAll();
                 return;
             }
             else if (!correctVersion)
             {
-                LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" + $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                DeactivateAll();
+                return;
+            }
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
                 return;
             }
         }
@@ -542,13 +599,13 @@ namespace IngameScript
             setupAlreadySent = true;
             CustomData();
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<double, float, double, float,
-                MyTuple<double, bool, bool>,
+                MyTuple<double, bool, bool, double>,
                 MyTuple<MatrixD, int>>(
                 WaitingCustom,
                 DynamicSpeedCustom,
                 DroneMovDistanceCustom,
                 RotorSpeedCustom,
-                new MyTuple<double, bool, bool>(maxDistanceStopCustom, slowModeCustom, weldWhileMovingCustom),
+                new MyTuple<double, bool, bool, double>(maxDistanceStopCustom, slowModeCustom, weldWhileMovingCustom, maxRTCustom),
                 new MyTuple<MatrixD, int>(
                 rotorMatrix, welderSign))
                 );
@@ -556,7 +613,7 @@ namespace IngameScript
         }
         public void Rotor_ws()
         {
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 string s = _commandLine.Argument(0);
                 float workingSpeed;
@@ -579,18 +636,27 @@ namespace IngameScript
             else if (!setupAlreadySent)
             {
                 LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                DeactivateAll();
                 return;
             }
             else if (!correctVersion)
             {
-                LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" +
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
                             $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                DeactivateAll();
+                return;
+            }
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
                 return;
             }
         }
         public void Max_distance()
         {
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 string s = _commandLine.Argument(0);
                 double distance;
@@ -608,18 +674,27 @@ namespace IngameScript
             else if (!setupAlreadySent)
             {
                 LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                DeactivateAll();
                 return;
             }
             else if (!correctVersion)
             {
-                LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" +
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
                             $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                DeactivateAll();
+                return;
+            }
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
                 return;
             }
         }
         public void Drone_move()
         {
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 string s = _commandLine.Argument(0);
                 double movement;
@@ -637,16 +712,27 @@ namespace IngameScript
             else if (!setupAlreadySent)
             {
                 LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                DeactivateAll();
+                return;
             }
             else if (!correctVersion)
             {
-                LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" +
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
                             $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                DeactivateAll();
+                return;
+            }
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
+                return;
             }
         }
         public void Waiting()
         {
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 string s = _commandLine.Argument(0);
                 double waiting;
@@ -664,16 +750,27 @@ namespace IngameScript
             else if (!setupAlreadySent)
             {
                 LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                DeactivateAll();
+                return;
             }
             else if (!correctVersion)
             {
-                LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" +
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
                             $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                DeactivateAll();
+                return;
+            }
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
+                return;
             }
         }
         public void Align()
         {
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 string s = _commandLine.Argument(0);
                 var rotorOrientation = Rotor.WorldMatrix.GetOrientation();
@@ -683,11 +780,22 @@ namespace IngameScript
             else if (!setupAlreadySent)
             {
                 LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                DeactivateAll();
+                return;
             }
             else if (!correctVersion)
             {
-                LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" +
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
                             $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                DeactivateAll();
+                return;
+            }
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
+                return;
             }
         }
         public void UntagDrone()
@@ -1008,6 +1116,23 @@ namespace IngameScript
             //Me.CustomData += $"angle: {welderAngle}--bool right: {welder_right}\n";
             welderSign = Math.Sign(welderAngle);
         }
+        public void DeactivateAll()
+        {
+            Rotor.Enabled = false;
+            foreach (var lcd in FancyLCDList)
+            {
+                lcd.Enabled = false;
+            }
+            foreach (var welder in WelderList)
+            {
+                welder.Enabled = false;
+            }
+            foreach (var light in FancyLightList)
+            {
+                light.Enabled = false;
+            }
+            foreach (var sound in FancySoundList) { sound.Volume = 0f; sound.Enabled = false; }
+        }
         public void ImListening()
         {
             while (_myBroadcastListener_station.HasPendingMessage)
@@ -1136,20 +1261,7 @@ namespace IngameScript
                         }
                         else if (!activation)
                         {
-                            Rotor.Enabled = false;
-                            foreach (var lcd in FancyLCDList)
-                            {
-                                lcd.Enabled = false;
-                            }
-                            foreach (var welder in WelderList)
-                            {
-                                welder.Enabled = false;
-                            }
-                            foreach (var light in FancyLightList)
-                            {
-                                light.Enabled = false;
-                            }
-                            foreach (var sound in FancySoundList) { sound.Volume = 0f; sound.Enabled = false; }
+                            DeactivateAll();
                             IGC.DisableBroadcastListener(_myBroadcastListener_station);
                             _myBroadcastListener_station = IGC.RegisterBroadcastListener(BroadcastTag);
                             _myBroadcastListener_station.SetMessageCallback(BroadcastTag);
@@ -1176,6 +1288,17 @@ namespace IngameScript
                         bool DroneSetup = tuple.Item2;
                         //Echo($"setup: {DroneSetup}");
                         if (!DroneSetup)
+                        {
+                            IGC.DisableBroadcastListener(_myBroadcastListener_station);
+                            _myBroadcastListener_station = IGC.RegisterBroadcastListener(BroadcastTag);
+                            _myBroadcastListener_station.SetMessageCallback(BroadcastTag);
+                            return;
+                        }
+                    }
+                    else if(myString == "initRequired")
+                    {
+                        initializedRequired = tuple.Item2;
+                        if (initializedRequired)
                         {
                             IGC.DisableBroadcastListener(_myBroadcastListener_station);
                             _myBroadcastListener_station = IGC.RegisterBroadcastListener(BroadcastTag);

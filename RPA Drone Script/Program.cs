@@ -30,21 +30,22 @@ namespace IngameScript
     {
         /// <summary>
         /// "Robotic Printing Automation" by Reckless
-        /// Current Version: V 3.5.4
+        /// Current Version: V 3.6.0
         /// Script == Drone
         /// Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
         /// </summary>
 
-        readonly string droneVersion = "V: 3.5.4";
+        readonly string droneVersion = "V: 3.6.0";
         readonly MyIni _ini = new MyIni();
         double Wait;
         double ImWait = 7;
         IMyBroadcastListener _myBroadcastListener;
-        bool setupCompleted; //initialization successfull, all blocks are tagged
+        bool setupCompleted; //setup successfull, all blocks are tagged
+        bool initializedRequired = true; //need to run setup?
         readonly List<IMyCockpit> CockpitList = new List<IMyCockpit>();
         readonly List<IMyProjector> ProjectorList = new List<IMyProjector>();
         readonly List<IMyThrust> ThrustersList = new List<IMyThrust>();
-        List<IMyThrust> NestedThrusters = new List<IMyThrust>();
+        readonly List<IMyThrust> NestedThrusters = new List<IMyThrust>();
         readonly List<IMyRadioAntenna> antennaList = new List<IMyRadioAntenna>();
         readonly List<IMyGasTank> tank = new List<IMyGasTank>();
 
@@ -156,6 +157,11 @@ namespace IngameScript
         readonly ImmutableList<string>.Builder startBuilder = ImmutableList.CreateBuilder<string>();
         ImmutableList<string> startIgnoringBlocks;
 
+        //runtime
+        readonly Profiler profiler;
+        double averageRT = 0;
+        double maxRT = 0;
+        double maxRTCustom = 0;
         public Program()
         {
             lcd_header = $"{lcd_divider}\n{lcd_title}\n{lcd_divider}";
@@ -169,9 +175,25 @@ namespace IngameScript
             ///CHECK SETUP//////////////////////
             CustomData();
             CheckInit();
+            profiler = new Profiler(this.Runtime);
         }
         public void Main(string argument, UpdateType updateSource)
         {
+            profiler.Run();
+            averageRT = Math.Round(profiler.RunningAverageMs, 2);
+            maxRT = Math.Round( profiler.MaxRuntimeMs, 2);
+            Echo($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n");
+            if(averageRT>0.8*maxRTCustom)
+            {
+                //Me.CustomData += integrityListT0.Count;
+                //Runtime.UpdateFrequency = UpdateFrequency.None;
+                //printing = false;
+                //foreach(var b in integrityListT0 )
+                //{
+                //    Me.CustomData += b.CustomName + "\n";
+                //}
+                return;
+            }
             if (argument.ToLower() == "init_d" && !printing)
             {
                 CustomData();
@@ -184,6 +206,23 @@ namespace IngameScript
                     IGC.SendBroadcastMessage(BroadcastTag, $"    |DRONE SETUP COMPLETED!\nVersion: {droneVersion}\n|Numbers of active thrusters: {ThrustersInGroup} " +
                         $"\n|Cockpit Found \n|Projector Found\n|Fuel Tank: {tank.Count}\n|Tag used: [{TagCustom}]");
                 }
+            }
+            if(argument.ToLower() == "stop")
+            {
+                Wait = ImWait;
+                firstRotation = false;
+                checkDistance = false;
+                Stop(ThrusterGroup:ThrustersList);
+                activation = false;
+                IGC.SendBroadcastMessage(BroadcastTag, newRotorSpeed = 0);
+                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
+                IGC.SendBroadcastMessage(BroadcastTag, "Stopping command processed.");
+                foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
+                IGC.DisableBroadcastListener(_myBroadcastListener);
+                _myBroadcastListener = IGC.RegisterBroadcastListener(BroadcastTag);
+                _myBroadcastListener.SetMessageCallback(BroadcastTag);
+                Runtime.UpdateFrequency = UpdateFrequency.None;
+                printing = false; //stop the print-->for the main
             }
             if (skip)
             {
@@ -453,8 +492,7 @@ namespace IngameScript
                 ThrustersInGroup = blockTagged.Count;
             }
             Me.CustomData = _ini.ToString();
-            //sending the version of the script to the station
-            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("droneVersion", droneVersion));
+            
 
             refreshBlocks = 0;
             builtBlocks = 0;
@@ -469,6 +507,10 @@ namespace IngameScript
 
             //SETUP COMPLETED
             setupCompleted = true;
+            initializedRequired = false;
+            //sending the version of the script to the station
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("droneVersion", droneVersion));
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("initRequired", initializedRequired));
         }
         //check initialization when recompiling
         public void CheckInit()
@@ -578,8 +620,10 @@ namespace IngameScript
                 ThrustersInGroup = NestedThrusters.Count();
             }
             //INITIALIZATION NOT REQUIRED
+            initializedRequired = false;
             Echo("Drone setup is correct, no need to initialize");
             IGC.SendBroadcastMessage(BroadcastTag, "Drone setup is correct.\nNo need to initialize");
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("initiRequired", initializedRequired));
             //Echo($"Thrusters in group : {ThrustersInGroup}");
             //Echo($"NestedThrusters : {NestedThrusters.Count}");
             //Echo($"ThrustersList : {ThrustersList.Count}");
@@ -634,9 +678,9 @@ namespace IngameScript
                     }
                     newIntegrity = activeWeldedBlockName.CubeGrid.GetCubeBlock(activeWeldedBlockName.Min).BuildLevelRatio;
                     PrintingOnActiveBlock();
-                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string, string, string, string>(
-                        checkTime.ToString(), activeWeldedBlockName.CustomName, activeWeldedBlockIntegrity.ToString(),
-                        newIntegrity.ToString(), angle.ToString()));
+                    //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string, string, string, string>(
+                    //    checkTime.ToString(), activeWeldedBlockName.CustomName, activeWeldedBlockIntegrity.ToString(),
+                    //    newIntegrity.ToString(), angle.ToString()));
                     if (checkTime <= 2)
                     {
                         if (newIntegrity != activeWeldedBlockIntegrity) { 
@@ -644,9 +688,9 @@ namespace IngameScript
                             Wait = ImWait; 
                             firstRotation = false; 
                         } //to put wait to max seconds and make it blink until block is finished
-                        IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string, string, string, string>(
-                        checkTime.ToString(), activeWeldedBlockName.CustomName, activeWeldedBlockIntegrity.ToString(),
-                        newIntegrity.ToString(), angle.ToString()));
+                        //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string, string, string, string>(
+                        //checkTime.ToString(), activeWeldedBlockName.CustomName, activeWeldedBlockIntegrity.ToString(),
+                        //newIntegrity.ToString(), angle.ToString()));
                         if (newIntegrity == 1)
                         {
                             //Echo("block deleted");
@@ -1063,18 +1107,17 @@ namespace IngameScript
                 }
 
                 //setup commands
-                if (myIGCMessage.Data is MyTuple<double, float, double, float, MyTuple<double, bool, bool>, MyTuple<MatrixD, int>>)
+                if (myIGCMessage.Data is MyTuple<double, float, double, float, MyTuple<double, bool, bool, double>, MyTuple<MatrixD, int>>)
                 {
                     printing = false;
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("droneVersion", droneVersion));
-                    //CustomData();
-                    //SetupBlocks();
+                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("initRequired", initializedRequired));
                     Runtime.UpdateFrequency = UpdateFrequency.None;
                     setupCommand = true;
                     Stop(ThrusterGroup);
                     checkDistance = false;
                     firstRotation = false;
-                    var tuple = (MyTuple<double, float, double, float, MyTuple<double, bool, bool>, MyTuple<MatrixD, int>>)myIGCMessage.Data;
+                    var tuple = (MyTuple<double, float, double, float, MyTuple<double, bool, bool, double>, MyTuple<MatrixD, int>>)myIGCMessage.Data;
                     ImWait = tuple.Item1;
                     DynamicSpeed = tuple.Item2;
                     DroneMovDistance = tuple.Item3;
@@ -1082,6 +1125,7 @@ namespace IngameScript
                     maxDistanceStop = tuple.Item5.Item1;
                     slowMode = tuple.Item5.Item2;
                     weldWhileMoving = tuple.Item5.Item3;
+                    maxRTCustom = tuple.Item5.Item4;
                     rotorMatrix = tuple.Item6.Item1;
                     welderSign = tuple.Item6.Item2;
                     rotorPosition = rotorMatrix.Translation;
@@ -1093,7 +1137,9 @@ namespace IngameScript
                         $"{"|DroneMovement",-17} {"= " + DroneMovDistance + " meters;",-16}\n" +
                         $"{"|Rotor Speed",-17} {"= " + RotorSpeed + " RPM;",-16}\n" +
                         $"{"|Dynamic Speed",-17} {"= " + DynamicSpeed + " RPM;",-16}\n" +
-                        $"{"|Safety Distance",-17} {"= " + maxDistanceStop + " meters",-16}";
+                        $"{"|Safety Distance",-17} {"= " + maxDistanceStop + " meters",-16}\n" +
+                        $"{"|Max Runtime",-17} {"= " + maxRTCustom + " ms",-16}"
+                        ;
                     Echo(output_tuple);
                     IGC.SendBroadcastMessage(BroadcastTag, output_tuple);
                 }
@@ -1625,6 +1671,97 @@ namespace IngameScript
         {
             string myString = "weldersToggle";
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>(myString, toggle));
+        }
+        internal sealed class Profiler
+        {
+            public double RunningAverageMs { get; private set; }
+            private double AverageRuntimeMs
+            {
+                get
+                {
+                    double sum = runtimeCollection[0];
+                    for (int i = 1; i < BufferSize; i++)
+                    {
+                        sum += runtimeCollection[i];
+                    }
+                    return (sum / BufferSize);
+                }
+            }
+            /// <summary>Use <see cref="MaxRuntimeMsFast">MaxRuntimeMsFast</see> if performance is a major concern</summary>
+            public double MaxRuntimeMs
+            {
+                get
+                {
+                    double max = runtimeCollection[0];
+                    for (int i = 1; i < BufferSize; i++)
+                    {
+                        if (runtimeCollection[i] > max)
+                        {
+                            max = runtimeCollection[i];
+                        }
+                    }
+                    return max;
+                }
+            }
+            public double MaxRuntimeMsFast { get; private set; }
+            public double MinRuntimeMs
+            {
+                get
+                {
+                    double min = runtimeCollection[0];
+                    for (int i = 1; i < BufferSize; i++)
+                    {
+                        if (runtimeCollection[i] < min)
+                        {
+                            min = runtimeCollection[i];
+                        }
+                    }
+                    return min;
+                }
+            }
+            public int BufferSize { get; }
+
+            private readonly double bufferSizeInv;
+            private readonly IMyGridProgramRuntimeInfo runtimeInfo;
+            private readonly double[] runtimeCollection;
+            private int counter = 0;
+
+            /// <summary></summary>
+            /// <param name="runtimeInfo">Program.Runtime instance of this script.</param>
+            /// <param name="bufferSize">Buffer size. Must be 1 or higher.</param>
+            public Profiler(IMyGridProgramRuntimeInfo runtimeInfo, int bufferSize = 300)
+            {
+                this.runtimeInfo = runtimeInfo;
+                this.MaxRuntimeMsFast = runtimeInfo.LastRunTimeMs;
+                this.BufferSize = MathHelper.Clamp(bufferSize, 1, int.MaxValue);
+                this.bufferSizeInv = 1.0 / BufferSize;
+                this.runtimeCollection = new double[bufferSize];
+                this.runtimeCollection[counter] = runtimeInfo.LastRunTimeMs;
+                this.counter++;
+            }
+
+            public void Run()
+            {
+                RunningAverageMs -= runtimeCollection[counter] * bufferSizeInv;
+                RunningAverageMs += runtimeInfo.LastRunTimeMs * bufferSizeInv;
+
+                runtimeCollection[counter] = runtimeInfo.LastRunTimeMs;
+
+                if (runtimeInfo.LastRunTimeMs > MaxRuntimeMsFast)
+                {
+                    MaxRuntimeMsFast = runtimeInfo.LastRunTimeMs;
+                }
+
+                counter++;
+
+                if (counter >= BufferSize)
+                {
+                    counter = 0;
+                    //Correct floating point drift
+                    RunningAverageMs = AverageRuntimeMs;
+                    MaxRuntimeMsFast = runtimeInfo.LastRunTimeMs;
+                }
+            }
         }
 
     }
