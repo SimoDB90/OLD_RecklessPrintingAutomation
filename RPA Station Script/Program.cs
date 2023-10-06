@@ -40,7 +40,7 @@ namespace IngameScript
 
         readonly string stationVersion = "V: 3.6.0";
         const string lcd_changelog =
-            "CHANGELOG VERSION 3.6.0 (X/10/2023)\r\n" +
+            "CHANGELOG VERSION 3.6.0 (06/10/2023)\r\n" +
             "-Check for drone's initialization done \n(otherwise, you can't start printing);\r\n" +
             "-Some checks here and there to avoid exceptions;\r\n" +
             "-Added some extra logs;\r\n" +
