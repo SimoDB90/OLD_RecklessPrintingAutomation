@@ -303,7 +303,7 @@ namespace IngameScript
 
         public void IgnoreAll()
         {
-            if(correctVersion && setupAlreadySent)
+            if(correctVersion && setupAlreadySent && !initializedRequired)
             {
                 IGC.SendBroadcastMessage(BroadcastTag, "ignore_all");
                 Echo($"Sending message: ignore_all");
@@ -321,19 +321,29 @@ namespace IngameScript
                 DeactivateAll();
                 return;
             }
-            //else if (initializedRequired)
-            //{
-            //    LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
-            //                $"Drone needs init: run \"init_d\"");
-            //    DeactivateAll();
-            //    return;
-            //}
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
+                return;
+            }
         }
         public void InitDrone()
         {
-            IGC.SendBroadcastMessage(BroadcastTag, "init_d");
-            LCDLog.WriteText($"{header} \nInit Drone: blocks tagged as drone's CD");
-            Echo($"Sending message: init_d\n{commands}");
+            if(correctVersion)
+            {
+                IGC.SendBroadcastMessage(BroadcastTag, "init_d");
+                LCDLog.WriteText($"{header} \nInit Drone: blocks tagged as drone's CD");
+                Echo($"Sending message: init_d\n{commands}");
+            }
+            else
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Different Version of scripts found,\n DONWLOAD THE UPDATED ONE");
+                DeactivateAll();
+                return;
+            }
         }
         public void Changelog()
         {
@@ -463,7 +473,7 @@ namespace IngameScript
         public void Start()
         {
             bool toggleAfterFinish = _commandLine.Switch("toggle");
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 IGC.SendBroadcastMessage(BroadcastTag, "start");
                 string output = $"Sending message: start\n{commands}";
@@ -500,13 +510,13 @@ namespace IngameScript
                 DeactivateAll();
                 return;
             }
-            //else if(initializedRequired)
-            //{
-            //    LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
-            //                $"Drone needs init: run \"init_d\"");
-            //    DeactivateAll();
-            //    return;
-            //}
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
+                return;
+            }
         }
 
         public void Stop()
@@ -522,7 +532,7 @@ namespace IngameScript
         }
         public void Skip()
         {
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 IGC.SendBroadcastMessage(BroadcastTag, "skip");
                 Echo($"Sending message: skip\n{commands}");
@@ -540,18 +550,18 @@ namespace IngameScript
                 DeactivateAll();
                 return;
             }
-            //else if (initializedRequired)
-            //{
-            //    LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
-            //                $"Drone needs init: run \"init_d\"");
-            //    DeactivateAll();
-            //    return;
-            //}
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
+                return;
+            }
         }
         //skip the actual block been welded and delete it from the list of blocks to weld
         public void IgnoreOne()
         {
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 IGC.SendBroadcastMessage(BroadcastTag, "ignore1");
                 Echo($"Sending message: ignore1\n{commands}");
@@ -569,13 +579,13 @@ namespace IngameScript
                 DeactivateAll();
                 return;
             }
-            //else if (initializedRequired)
-            //{
-            //    LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
-            //                $"Drone needs init: run \"init_d\"");
-            //    DeactivateAll();
-            //    return;
-            //}
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
+                return;
+            }
         }
         public void Toggle()
         {
@@ -613,7 +623,7 @@ namespace IngameScript
         }
         public void Rotor_ws()
         {
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 string s = _commandLine.Argument(0);
                 float workingSpeed;
@@ -646,17 +656,17 @@ namespace IngameScript
                 DeactivateAll();
                 return;
             }
-            //else if (initializedRequired)
-            //{
-            //    LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
-            //                $"Drone needs init: run \"init_d\"");
-            //    DeactivateAll();
-            //    return;
-            //}
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
+                return;
+            }
         }
         public void Max_distance()
         {
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 string s = _commandLine.Argument(0);
                 double distance;
@@ -684,17 +694,17 @@ namespace IngameScript
                 DeactivateAll();
                 return;
             }
-            //else if (initializedRequired)
-            //{
-            //    LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
-            //                $"Drone needs init: run \"init_d\"");
-            //    DeactivateAll();
-            //    return;
-            //}
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
+                return;
+            }
         }
         public void Drone_move()
         {
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 string s = _commandLine.Argument(0);
                 double movement;
@@ -722,17 +732,17 @@ namespace IngameScript
                 DeactivateAll();
                 return;
             }
-            //else if (initializedRequired)
-            //{
-            //    LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
-            //                $"Drone needs init: run \"init_d\"");
-            //    DeactivateAll();
-            //    return;
-            //}
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
+                return;
+            }
         }
         public void Waiting()
         {
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 string s = _commandLine.Argument(0);
                 double waiting;
@@ -760,17 +770,17 @@ namespace IngameScript
                 DeactivateAll();
                 return;
             }
-            //else if (initializedRequired)
-            //{
-            //    LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
-            //                $"Drone needs init: run \"init_d\"");
-            //    DeactivateAll();
-            //    return;
-            //}
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
+                return;
+            }
         }
         public void Align()
         {
-            if (correctVersion && setupAlreadySent)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 string s = _commandLine.Argument(0);
                 var rotorOrientation = Rotor.WorldMatrix.GetOrientation();
@@ -790,13 +800,13 @@ namespace IngameScript
                 DeactivateAll();
                 return;
             }
-            //else if (initializedRequired)
-            //{
-            //    LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
-            //                $"Drone needs init: run \"init_d\"");
-            //    DeactivateAll();
-            //    return;
-            //}
+            else if (initializedRequired)
+            {
+                LCDLog.WriteText($"{header} \nDrone script {droneVersion}\nStation script {stationVersion}\n{lcd_divider}\n" +
+                            $"Drone needs init: run \"init_d\"");
+                DeactivateAll();
+                return;
+            }
         }
         public void UntagDrone()
         {
@@ -1295,17 +1305,17 @@ namespace IngameScript
                             return;
                         }
                     }
-                    //else if(myString == "initRequired")
-                    //{
-                    //    initializedRequired = tuple.Item2;
-                    //    if (initializedRequired)
-                    //    {
-                    //        IGC.DisableBroadcastListener(_myBroadcastListener_station);
-                    //        _myBroadcastListener_station = IGC.RegisterBroadcastListener(BroadcastTag);
-                    //        _myBroadcastListener_station.SetMessageCallback(BroadcastTag);
-                    //        return;
-                    //    }
-                    //}
+                    else if (myString == "initRequired")
+                    {
+                        initializedRequired = tuple.Item2;
+                        if (initializedRequired)
+                        {
+                            IGC.DisableBroadcastListener(_myBroadcastListener_station);
+                            _myBroadcastListener_station = IGC.RegisterBroadcastListener(BroadcastTag);
+                            _myBroadcastListener_station.SetMessageCallback(BroadcastTag);
+                            return;
+                        }
+                    }
                 }
             }
         }

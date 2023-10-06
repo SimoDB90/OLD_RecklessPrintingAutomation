@@ -174,7 +174,7 @@ namespace IngameScript
             ////////////////////////////////////////
             ///CHECK SETUP//////////////////////
             CustomData();
-            CheckInit();
+            initializedRequired = CheckInit();
             profiler = new Profiler(this.Runtime);
         }
         public void Main(string argument, UpdateType updateSource)
@@ -183,7 +183,7 @@ namespace IngameScript
             averageRT = Math.Round(profiler.RunningAverageMs, 2);
             maxRT = Math.Round( profiler.MaxRuntimeMs, 2);
             Echo($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n");
-            if(averageRT>0.8*maxRTCustom)
+            if(averageRT>0.7*maxRTCustom)
             {
                 //Me.CustomData += integrityListT0.Count;
                 //Runtime.UpdateFrequency = UpdateFrequency.None;
@@ -203,7 +203,7 @@ namespace IngameScript
                 {
                     printing = false;
                     Echo($"DRONE SETUP COMPLETED!\nVersion: {droneVersion}\nNumbers of thrusters in group: {ThrustersInGroup}\nCockpit Found \nProjector Found \nFuel Tank: {tank.Count}\nTag used: {TagCustom}");
-                    IGC.SendBroadcastMessage(BroadcastTag, $"    |DRONE SETUP COMPLETED!\nVersion: {droneVersion}\n|Numbers of active thrusters: {ThrustersInGroup} " +
+                    IGC.SendBroadcastMessage(BroadcastTag, $"    |DRONE SETUP COMPLETED!\n|Version: {droneVersion}\n|Numbers of active thrusters: {ThrustersInGroup} " +
                         $"\n|Cockpit Found \n|Projector Found\n|Fuel Tank: {tank.Count}\n|Tag used: [{TagCustom}]");
                 }
             }
@@ -513,7 +513,7 @@ namespace IngameScript
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("initRequired", initializedRequired));
         }
         //check initialization when recompiling
-        public void CheckInit()
+        public bool CheckInit()
         {
             //CHECK CUSTOM DATA
             bool initializedParsed = _ini.TryParse(Me.CustomData);
@@ -534,13 +534,13 @@ namespace IngameScript
             {
                 Echo("Initialization required;\nSet tag in CD, then run \"init_d\"");
                 IGC.SendBroadcastMessage(BroadcastTag, "Initialization required;\nSet tag in CD, then run \"init_d\"");
-                return;
+                return true;
             }
             if (tankCount == 0 || AntennaCount == 0 || CockpitCount == 0 || ProjectorCount == 0 || ThrustersCount == 0)
             {
                 Echo("Initialization required;\nSet tag in CD, then run \"init_d\"");
                 IGC.SendBroadcastMessage(BroadcastTag, "Initialization required;\nSet tag in CD, then run \"init_d\"");
-                return;
+                return true;
             }
             //CHECK BLOCKS AND COMPARE WITH CUSTOM DATA
             GridTerminalSystem.GetBlocksOfType(tank, x => x.CustomName.Contains(TagCustom));
@@ -548,7 +548,7 @@ namespace IngameScript
             {
                 Echo("Tank failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
                 IGC.SendBroadcastMessage(BroadcastTag, "Tank failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
-                return;
+                return true;
             }
             IMyGasTank Tank;
             Tank = tank[0];
@@ -557,14 +557,14 @@ namespace IngameScript
             {
                 Echo("Antenna failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
                 IGC.SendBroadcastMessage(BroadcastTag, "Antenna failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
-                return;
+                return true;
             }
             GridTerminalSystem.GetBlocksOfType(CockpitList, x => x.CustomName.Contains(TagCustom));
             if (CockpitList==null || CockpitList.Count != CockpitCount)
             {
                 Echo("Cockpit failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
                 IGC.SendBroadcastMessage(BroadcastTag, "Cockpit failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
-                return;
+                return true;
             }
             Cockpit = CockpitList[0];
             GridTerminalSystem.GetBlocksOfType(ProjectorList, x => x.CustomName.Contains(TagCustom));
@@ -572,7 +572,7 @@ namespace IngameScript
             {
                 Echo("Projector failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
                 IGC.SendBroadcastMessage(BroadcastTag, "Projector failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
-                return;
+                return true;
             }
             Projector = ProjectorList[0];
             //THRUSTERS CHECK
@@ -594,20 +594,20 @@ namespace IngameScript
                     {
                         Echo("Thrusters failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
                         IGC.SendBroadcastMessage(BroadcastTag, "Thrusters failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
-                        return;
+                        return true;
                     }
                 }
                 if (ThrustersGroupsList == null && (ThrustersGroupsList.Count == 0 || ThrustersGroupsList.Count > 1))
                 {
                     Echo("Thrusters failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
                     IGC.SendBroadcastMessage(BroadcastTag, "Thrusters failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
-                    return;
+                    return true;
                 }
                 if((ThrustersList == null && NestedThrusters == null) || (ThrustersList.Count!=ThrustersCount && NestedThrusters.Count!=ThrustersCount))
                 {
                     Echo("Thrusters failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
                     IGC.SendBroadcastMessage(BroadcastTag, "Thrusters failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
-                    return;
+                    return true;
                 }
                 
             }
@@ -620,13 +620,13 @@ namespace IngameScript
                 ThrustersInGroup = NestedThrusters.Count();
             }
             //INITIALIZATION NOT REQUIRED
-            initializedRequired = false;
             Echo("Drone setup is correct, no need to initialize");
             IGC.SendBroadcastMessage(BroadcastTag, "Drone setup is correct.\nNo need to initialize");
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("initiRequired", initializedRequired));
             //Echo($"Thrusters in group : {ThrustersInGroup}");
             //Echo($"NestedThrusters : {NestedThrusters.Count}");
             //Echo($"ThrustersList : {ThrustersList.Count}");
+            return false;
         }
         public float ConditionalRotorSpeed()
         {
@@ -1111,8 +1111,12 @@ namespace IngameScript
                 {
                     printing = false;
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("droneVersion", droneVersion));
+                    initializedRequired = CheckInit();
+                    //Echo($"init: {initializedRequired}");
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("initRequired", initializedRequired));
                     Runtime.UpdateFrequency = UpdateFrequency.None;
+                    activation = false;
+                    IGC.SendBroadcastMessage(BroadcastTag, activation);
                     setupCommand = true;
                     Stop(ThrusterGroup);
                     checkDistance = false;
