@@ -113,7 +113,7 @@ namespace IngameScript
         const string lcd_status_title = "     RPA Status Report      ";
         const string lcd_h2_level = "         TUG H2 LEVEL";
         const string lcd_proj_level = "     PROJECTION LEVEL";
-        readonly string lcd_header;
+        string lcd_header;
         bool imMoving = false; //check if the drone is moving
         //string printingStatus;
         int totBlocks;
@@ -158,11 +158,15 @@ namespace IngameScript
         ImmutableList<string> startIgnoringBlocks;
 
         //runtime
-        readonly Profiler profiler;
+        Profiler profiler;
         double averageRT = 0;
         double maxRT = 0;
         double maxRTCustom = 0;
         public Program()
+        {
+            Starter();
+        }
+        public void Starter()
         {
             lcd_header = $"{lcd_divider}\n{lcd_title}\n{lcd_divider}";
 
@@ -644,14 +648,8 @@ namespace IngameScript
                 foreach (var block in integrityListT0)
                 {
                     var integrity = block.CubeGrid.GetCubeBlock(block.Min).BuildLevelRatio;
-                    if (!timeZeroDict.ContainsKey(block))
-                    {
-                        timeZeroDict.Add(block, integrity);
-                    }
-                    else
-                    {
-                        timeZeroDict[block] = integrity;
-                    }
+                    timeZeroDict[block] = integrity;
+
                 }
             }
 
@@ -1109,10 +1107,11 @@ namespace IngameScript
                 //setup commands
                 if (myIGCMessage.Data is MyTuple<double, float, double, float, MyTuple<double, bool, bool, double>, MyTuple<MatrixD, int>>)
                 {
+                    Starter();
                     printing = false;
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("droneVersion", droneVersion));
-                    initializedRequired = CheckInit();
-                    //Echo($"init: {initializedRequired}");
+                    //initializedRequired = CheckInit();
+                    Echo($"init: {initializedRequired}");
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("initRequired", initializedRequired));
                     Runtime.UpdateFrequency = UpdateFrequency.None;
                     activation = false;

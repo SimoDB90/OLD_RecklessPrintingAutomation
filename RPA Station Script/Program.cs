@@ -1148,6 +1148,7 @@ namespace IngameScript
             while (_myBroadcastListener_station.HasPendingMessage)
             {
                 var myIGCMessage_fromDrone = _myBroadcastListener_station.AcceptMessage();
+
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string>)
                 {
                     var tuple = (MyTuple<string, string>)myIGCMessage_fromDrone.Data;
