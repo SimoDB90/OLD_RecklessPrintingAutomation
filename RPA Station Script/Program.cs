@@ -1,4 +1,4 @@
-﻿using EmptyKeys.UserInterface.Generated.DataTemplatesContractsDataGrid_Bindings;
+using EmptyKeys.UserInterface.Generated.DataTemplatesContractsDataGrid_Bindings;
 using Sandbox.Game.Entities;
 using Sandbox.Game.EntityComponents;
 using Sandbox.Game.Lights;
@@ -120,9 +120,6 @@ namespace IngameScript
         //max movement of the drone
         const double DroneMovDistanceDefault = 1.7;
         double DroneMovDistanceCustom;
-        //slow mode
-        const bool slowModeDefault = false;
-        bool slowModeCustom;
         const double maxRTDefault = 0.5; //max runtime that server allows to have per player
         double maxRTCustom;
         // welde while moving bool
@@ -252,7 +249,6 @@ namespace IngameScript
             RotorSpeedCustom = _ini.Get("data", "RotorSpeed").ToSingle(RotorSpeedDefault);
             DynamicSpeedCustom = _ini.Get("data", "DynamicSpeed(RPM)").ToSingle(DynamicSpeedDefault);
             maxDistanceStopCustom = _ini.Get("data", "MaxDistanceStop(meters)").ToDouble(maxDistanceStopDefault);
-            slowModeCustom = _ini.Get("data", "SlowMode").ToBoolean(slowModeDefault);
             maxRTCustom = _ini.Get("data", "MaxServerRuntime(ms)").ToDouble(maxRTDefault);
 
             if (!wasParsed)
@@ -267,7 +263,6 @@ namespace IngameScript
             _ini.Set("data", "RotorSpeed", RotorSpeedCustom);
             _ini.Set("data", "DynamicSpeed(RPM)", DynamicSpeedCustom);
             _ini.Set("data", "MaxDistanceStop(meters)", maxDistanceStopCustom);
-            _ini.Set("data", "SlowMode", slowModeCustom);
             _ini.Set("data", "MaxServerRuntime(ms)", maxRTCustom);
 
             Me.CustomData = _ini.ToString();
@@ -609,13 +604,13 @@ namespace IngameScript
             setupAlreadySent = true;
             CustomData();
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<double, float, double, float,
-                MyTuple<double, bool, bool, double>,
+                MyTuple<double, bool, double>,
                 MyTuple<MatrixD, int>>(
                 WaitingCustom,
                 DynamicSpeedCustom,
                 DroneMovDistanceCustom,
                 RotorSpeedCustom,
-                new MyTuple<double, bool, bool, double>(maxDistanceStopCustom, slowModeCustom, weldWhileMovingCustom, maxRTCustom),
+                new MyTuple<double, bool, double>(maxDistanceStopCustom, weldWhileMovingCustom, maxRTCustom),
                 new MyTuple<MatrixD, int>(
                 rotorMatrix, welderSign))
                 );
@@ -1148,7 +1143,6 @@ namespace IngameScript
             while (_myBroadcastListener_station.HasPendingMessage)
             {
                 var myIGCMessage_fromDrone = _myBroadcastListener_station.AcceptMessage();
-
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string>)
                 {
                     var tuple = (MyTuple<string, string>)myIGCMessage_fromDrone.Data;
@@ -1163,7 +1157,7 @@ namespace IngameScript
                             correctVersion = true;
                             try
                             {
-                                LCDStatus.WriteText($"{header} \nDrone Script {droneVersion}\nStation Script {stationVersion}\n\nDETECTED CORRECT VERSIONS\n" +
+                                LCDStatus.WriteText($"{lcd_header} \nDrone Script   {droneVersion}\nStation Script {stationVersion}\n\nDETECTED CORRECT VERSIONS\n" +
                                                 $"{lcd_divider}\n{lcd_divider}\n" +
                                                 $"{lcd_changelog}");
                             }
@@ -1177,7 +1171,7 @@ namespace IngameScript
                             correctVersion = false;
                             try
                             {
-                                LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" +
+                                LCDLog.WriteText($"{header} \nDrone Script {droneVersion}\nStation Script {stationVersion}\n{lcd_divider}\n" +
                                     $"Different Version of scripts found,\n please DONWLOAD THE UPDATED ONE");
                                 Echo("Different Version of scripts found,\n please DONWLOAD THE UPDATED ONE");
                                 LCDStatus.WriteText($"{header}\nDrone Script {droneVersion}\nStation Script {stationVersion}\n{lcd_divider}");
@@ -1186,7 +1180,7 @@ namespace IngameScript
                             return;
                         }
                     }
-                    else if (log == "ActiveWelding")
+                    if (log == "ActiveWelding")
                     {
                         try
                         {
@@ -1194,8 +1188,17 @@ namespace IngameScript
                         }
                         catch { }
                     }
-
-                    else
+                    if(log=="LogWriting")
+                    {
+                        LCDLog.WriteText($"{HeaderCreation()} \n{log}");
+                        //continues stream of rotorHead infos
+                        if (activation)
+                        {
+                            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD>(
+                                                "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix));
+                        }
+                    }
+                    if(log == "StatusWriting")
                     {
 
                         string stuckedY = "Looking for the Block";
@@ -1206,30 +1209,31 @@ namespace IngameScript
                         else if (Rotor.TargetVelocityRPM == RotorSpeedCustom) stuckStatus = stuckedN;
                         else if (Rotor.TargetVelocityRPM == 0) stuckStatus = "Welding";
                         else if (Rotor.TargetVelocityRPM == DynamicSpeedCustom) stuckStatus = fastTrip;
-                        LCDLog.WriteText($"{HeaderCreation()} \n{log}");
+                        
                         LCDStatus.WriteText($"{status}\n{lcd_divider}\n         WELDERS STATUS\n{lcd_divider}\n{stuckStatus}");
-                        //continues stream of rotorHead infos
-                        if (activation)
-                        {
-                            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD>(
-                                                "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix));
-                        }
+                        
+                        
                         Echo(compact_commands);
                     }
                 }
                 //DEBUG LCD
-                if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string, string, string, string>)
+                if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string>)
                 {
                     try
                     {
-                        var tuple = (MyTuple<string, string, string, string, string>)myIGCMessage_fromDrone.Data;
-                        string checkTime = tuple.Item1;
-                        string name = tuple.Item2;
-                        string integrity = tuple.Item3;
-                        string newIntegrity = tuple.Item4;
-                        string angle = tuple.Item5;
-                        debug.WriteText($"DEBUG\nStuck Time check: {checkTime}\nBlock Name: {name}\n" +
-                            $"Integrity: {integrity}\nNewIntegrity: {newIntegrity}\nAngle: {angle}");
+                        var tuple = (MyTuple<string, string>)myIGCMessage_fromDrone.Data;
+                        string deb = tuple.Item1;
+                        var message = tuple.Item2;
+                        if(deb == "Debug") debug.WriteText(message);
+                        //var tuple = (MyTuple<string, string, string, string, string>)myIGCMessage_fromDrone.Data;
+                        //string checkTime = tuple.Item1;
+                        //string name = tuple.Item2;
+                        //string integrity = tuple.Item3;
+                        //string newIntegrity = tuple.Item4;
+                        //string angle = tuple.Item5;
+                        //debug.WriteText($"DEBUG\nStuck Time check: {checkTime}\nBlock Name: {name}\n" +
+                        //    $"Integrity: {integrity}\nNewIntegrity: {newIntegrity}\nAngle: {angle}");
+
                     }
                     catch
                     { }
@@ -1300,9 +1304,6 @@ namespace IngameScript
                         //Echo($"setup: {DroneSetup}");
                         if (!DroneSetup)
                         {
-                            IGC.DisableBroadcastListener(_myBroadcastListener_station);
-                            _myBroadcastListener_station = IGC.RegisterBroadcastListener(BroadcastTag);
-                            _myBroadcastListener_station.SetMessageCallback(BroadcastTag);
                             return;
                         }
                     }
@@ -1311,9 +1312,6 @@ namespace IngameScript
                         initializedRequired = tuple.Item2;
                         if (initializedRequired)
                         {
-                            IGC.DisableBroadcastListener(_myBroadcastListener_station);
-                            _myBroadcastListener_station = IGC.RegisterBroadcastListener(BroadcastTag);
-                            _myBroadcastListener_station.SetMessageCallback(BroadcastTag);
                             return;
                         }
                     }
