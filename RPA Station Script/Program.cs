@@ -200,6 +200,7 @@ namespace IngameScript
         double lcd_spinner_status;
         const string lcd_divider = "--------------------------------";
         const string lcd_title = "  RECKLESS PRINTING AUTOMATION  ";
+        const string lcd_status_title = "     RPA Status Report      ";
         const string lcd_command_title = "COMMANDS GUIDE:";
         const string lcd_version = "RPA ";
 
@@ -1090,6 +1091,15 @@ namespace IngameScript
                 $"{lcd_divider}";
             return output;
         }
+        public string StatusLCDHeaderCreation()
+        {
+            //lcd_spinner_status += Runtime.TimeSinceLastRun.TotalSeconds;
+            //if (lcd_spinner_status > lcd_spinners.Length) { lcd_spinner_status = 0; }
+            string spinner = lcd_spinners[(int)lcd_spinner_status];
+            string output = $"{lcd_divider}\n{spinner + spinner + lcd_status_title + spinner + spinner}\n" +
+                $"{lcd_divider}";
+            return output;
+        }
         /// <summary>
         /// Find the farest welder from thew rotor to decide the direction
         /// of the alignment
@@ -1190,7 +1200,7 @@ namespace IngameScript
                     }
                     if(log=="LogWriting")
                     {
-                        LCDLog.WriteText($"{HeaderCreation()} \n{log}");
+                        LCDLog.WriteText($"{HeaderCreation()} \n{status}");
                         //continues stream of rotorHead infos
                         if (activation)
                         {
@@ -1209,9 +1219,8 @@ namespace IngameScript
                         else if (Rotor.TargetVelocityRPM == RotorSpeedCustom) stuckStatus = stuckedN;
                         else if (Rotor.TargetVelocityRPM == 0) stuckStatus = "Welding";
                         else if (Rotor.TargetVelocityRPM == DynamicSpeedCustom) stuckStatus = fastTrip;
-                        
-                        LCDStatus.WriteText($"{status}\n{lcd_divider}\n         WELDERS STATUS\n{lcd_divider}\n{stuckStatus}");
-                        
+
+                        LCDStatus.WriteText($"{StatusLCDHeaderCreation()} \n{status}\n{lcd_divider}\n         WELDERS STATUS\n{lcd_divider}\n{stuckStatus}");
                         
                         Echo(compact_commands);
                     }

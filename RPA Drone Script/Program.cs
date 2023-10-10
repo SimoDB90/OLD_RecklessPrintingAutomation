@@ -102,12 +102,9 @@ namespace IngameScript
         double lcd_printing_spinner_status;
         readonly string[] lcd_moving_spinners = new string[] { "MO", "MOVI", "MOVING.", "MOVING..." };
         double lcd_moving_spinner_status;
-        readonly string[] lcd_spinners = new string[] { "-", "\\", "|", "/" };
-        double lcd_spinner_status;
         double spinningWaitingStatus;
         const string lcd_divider = "--------------------------------";
         const string lcd_title = "  RECKLESS PRINTING AUTOMATION  ";
-        const string lcd_status_title = "     RPA Status Report      ";
         const string lcd_h2_level = "         TUG H2 LEVEL";
         const string lcd_proj_level = "     PROJECTION LEVEL";
         string lcd_header;
@@ -183,8 +180,8 @@ namespace IngameScript
             CustomData();
             initializedRequired = CheckInit();
             profiler = new Profiler(this.Runtime);
-            timerSM = new SimpleTimerSM(this, SequenceConditionalRotorSpeed() , autoStart: true);
-            statusLCDStateMachine = new SimpleTimerSM(this, sequence: StatusLCD(), autoStart: true);
+            timerSM = new SimpleTimerSM(this, SequenceConditionalRotorSpeed());
+            statusLCDStateMachine = new SimpleTimerSM(this, sequence: StatusLCD());
 
         }
         public void Main(string argument, UpdateType updateSource)
@@ -639,15 +636,18 @@ namespace IngameScript
         }
         public IEnumerable<double> SequenceConditionalRotorSpeed()
         {
-            while (true)
+            while (!firstRotation && printing)
             {
-                PrintingBlocksListCreation();
+                IMyTerminalBlock firstBlock;
+                yield return 9 * ticksToSeconds;
                 time += Runtime.TimeSinceLastRun.TotalSeconds;
-                List<IMyTerminalBlock> tempList = integrityListT0.ToList();
-                yield return 9 * ticksToSeconds; //in this way i return 2 ticks of yielding
-                time += Runtime.TimeSinceLastRun.TotalSeconds;
-                activeWeldedBlockIntegrity = tempList[0].CubeGrid.GetCubeBlock(tempList[0].Min).BuildLevelRatio;
-                activeWeldedBlockName = tempList[0];
+                if (integrityListT0 != null && integrityListT0.Count > 0)
+                {
+                    firstBlock = integrityListT0[0];
+                    activeWeldedBlockIntegrity = firstBlock.CubeGrid.GetCubeBlock(firstBlock.Min).BuildLevelRatio;
+                    activeWeldedBlockName = firstBlock;
+                }
+                else yield break;
                 newRotorSpeed = RotorControl(activeWeldedBlockName);
                 PrintingOnActiveLCD();
                 if (ignore1TB)
@@ -688,32 +688,32 @@ namespace IngameScript
                     time = 0;
                     yield break;
                 }
+
                 yield return 18 * ticksToSeconds;
                 while (activeWeldedBlockIntegrity < 1)
                 {
                     time += Runtime.TimeSinceLastRun.TotalSeconds;
                     newRotorSpeed = RotorControl(activeWeldedBlockName);
+                    activeWeldedBlockIntegrity = firstBlock.CubeGrid.GetCubeBlock(firstBlock.Min).BuildLevelRatio;
                     PrintingOnActiveLCD();
                     activePrinting = true;
                     Wait = ImWait;
                     firstRotation = false;
-                    yield return 18 * ticksToSeconds;
+                    yield return 60 * ticksToSeconds;
                 }
-                if (activeWeldedBlockIntegrity == 1)
-                {
-                    //Echo("block deleted");
-                    time += Runtime.TimeSinceLastRun.TotalSeconds;
-                    activePrinting = false;
-                    builtBlocks++;
-                    totTime += (int)Math.Ceiling(time);
-                    averageTime = totTime / builtBlocks;
-                    if (time > maxTime) { maxTime = (int)Math.Ceiling(time); }
-                    if (time < minTime) { minTime = (int)Math.Ceiling(time); }
-                    PrintingOnActiveLCD();
-                    newRotorSpeed = RotorSpeed / 2;
-                    time = 0;
-                    yield break;
-                }
+                //Echo("block deleted");
+                time += Runtime.TimeSinceLastRun.TotalSeconds;
+                activePrinting = false;
+                builtBlocks++;
+                totTime += (int)Math.Ceiling(time);
+                averageTime = totTime / builtBlocks;
+                if (time > maxTime) { maxTime = (int)Math.Ceiling(time); }
+                if (time < minTime) { minTime = (int)Math.Ceiling(time); }
+                activeWeldedBlockIntegrity = firstBlock.CubeGrid.GetCubeBlock(firstBlock.Min).BuildLevelRatio;
+                PrintingOnActiveLCD();
+                newRotorSpeed = RotorSpeed / 2;
+                time = 0;
+                yield break;
             }
         }
 
@@ -810,6 +810,8 @@ namespace IngameScript
                 {
                     //Echo("1");
                     Runtime.UpdateFrequency = UpdateFrequency.None;
+                    timerSM.AutoStart = false;
+                    statusLCDStateMachine.AutoStart = false;
                     timerSM.Stop();
                     statusLCDStateMachine.Stop();
                     Wait = 0;
@@ -838,6 +840,8 @@ namespace IngameScript
                 if (safetyDistanceStop >= maxDistanceStop)
                 {
                     Runtime.UpdateFrequency = UpdateFrequency.None;
+                    timerSM.AutoStart = false;
+                    statusLCDStateMachine.AutoStart = false;
                     timerSM.Stop();
                     statusLCDStateMachine.Stop();
                     Wait = 0;
@@ -904,6 +908,8 @@ namespace IngameScript
                             statusLCDStateMachine.Start();
                             PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
                             timerSM.Start();
+                            statusLCDStateMachine.AutoStart = true;
+                            timerSM.AutoStart = true;
                             printing = true; //start the print-->for the main
                             break;
 
@@ -916,6 +922,8 @@ namespace IngameScript
                             firstRotation = false;
                             checkDistance = false;
                             Stop(ThrusterGroup);
+                            timerSM.AutoStart = false;
+                            statusLCDStateMachine.AutoStart = false;
                             timerSM.Stop();
                             statusLCDStateMachine.Stop();
                             activation = false;
@@ -1410,20 +1418,12 @@ namespace IngameScript
 
         public IEnumerable<double> StatusLCD()
         {
-            while (true)
+            while (integrityListT0 != null && integrityListT0.Count > 0 && printing)
             {
                 List<IMyTerminalBlock> tempList = integrityListT0.ToList();
-                string spinningSymbols;
-                StringBuilder statusHeader = new StringBuilder();
                 for (int i = 0; i < tempList.Count; i++)
                 {
-                    yield return 9 * ticksToSeconds;
-                    lcd_moving_spinner_status += Math.Floor(Runtime.TimeSinceLastRun.TotalMilliseconds / 1.5);
-                    if (lcd_spinner_status > lcd_spinners.Length) lcd_spinner_status = 0;
-                    spinningSymbols = lcd_spinners[(int)lcd_spinner_status];
-                    statusHeader.Append(lcd_divider + "\n" + spinningSymbols +
-                        spinningSymbols + lcd_status_title + spinningSymbols +
-                        spinningSymbols + "\n" + lcd_divider);
+                    yield return 18 * ticksToSeconds;
                     var block = tempList[i];
                     string name = block.CustomName;
                     if (name.Length > 25)
@@ -1431,11 +1431,12 @@ namespace IngameScript
                         name = name.Substring(0, 10) + "...." + name.Substring(name.Length - 10);
                     }
                     float integrity = block.CubeGrid.GetCubeBlock(block.Min).BuildLevelRatio * 100;
-                    printingStatus.AppendLine($"{statusHeader}\n{name,-26}{integrity,5}%\r\n");
-                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StatusWriting", printingStatus.ToString()));
+                    printingStatus.Append($"{name,-26}{Math.Round(integrity, 2),5}%\n");
                 }
-                statusHeader.Clear();
+                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StatusWriting", printingStatus.ToString()));
+                printingStatus.Clear(); 
             }
+            yield break;
         }
         public void Projecting(IMyProjector Projector)
         {
