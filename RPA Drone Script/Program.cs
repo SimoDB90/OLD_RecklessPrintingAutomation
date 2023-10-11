@@ -139,6 +139,7 @@ namespace IngameScript
 
         //Status LCD lIST
         readonly StringBuilder printingStatus = new StringBuilder();
+        StringBuilder activeOuput = new StringBuilder();
         //
         IMyTerminalBlock activeWeldedBlockName;
         float activeWeldedBlockIntegrity = 0;
@@ -900,7 +901,6 @@ namespace IngameScript
                     statusLCDStateMachine.Stop();
                     Wait = 0;
                     Stop(ThrusterGroup);
-                    timerSM.Stop();
                     checkDistance = false;
                     firstRotation = false;
                     activation = false;
@@ -1477,7 +1477,7 @@ namespace IngameScript
             ETA_Extimate = (int)Math.Abs(totTimeETA - Math.Ceiling(totTime / 60f));
             ETA_Perc_based = (int)Math.Ceiling(Math.Abs(totTime - (100 / totBlockPercentage) * totTime)/60);
             ETA = (int)Math.Ceiling(((double)ETA_Extimate + ETA_Perc_based) / 2);
-            StringBuilder activeOuput = new StringBuilder();
+            
             //PRINT ON ACTIVE LCD
             activeOuput.Append($"{lcd_divider}\n          ACTIVE WELDING\n{lcd_divider}\n"
                  + $"{activeWeldedBlockName.CustomName,-26}{Math.Round(activeWeldedBlockIntegrity * 100, 2),5}%\n" +
@@ -1501,6 +1501,7 @@ namespace IngameScript
                  //$"{"totTime - su = " + (totTime-( 100 / totBlockPercentage * totTime))}\n"
                  );
              IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("ActiveWelding", activeOuput.ToString()));
+            activeOuput.Clear();
          }
 
         public IEnumerable<double> StatusLCD()
