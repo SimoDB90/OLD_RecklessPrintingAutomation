@@ -26,37 +26,36 @@ using VRage.Game.ModAPI.Ingame.Utilities;
 using VRage.Game.ObjectBuilders.Definitions;
 using VRageMath;
 using VRageRender.Messages;
+using static VRage.Game.MyObjectBuilder_BehaviorTreeDecoratorNode;
+using static VRage.Game.MyObjectBuilder_Toolbar;
 
 namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        /// <summary>
-        /// "Robotic Printing Automation" by Reckless
-        /// Current Version: V 3.6.0
-        /// Script == Station
-        /// Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
-        /// </summary>
-
-        readonly string stationVersion = "V: 3.6.0";
+        readonly string stationVersion = "V: 4.0.0";
         const string lcd_changelog =
+            "CHANGELOG VERSION 4.0.0 (11/10/2023):\n" +
+            "-Fixed some initi bugs;\n" +
+            "-Deleted \"Slow mode\";\n" +
+            "-Huge rework of some logics of the scripts,\n" +
+            "to slow them down when runtime exceeds thresholds;\n" +
+            "-Added an automatic way to store some variables,\n" +
+            " to calculate ETA, to persist through recompiles;" +
+            "\n--------------------------------\n" +
             "CHANGELOG VERSION 3.6.0 (06/10/2023)\r\n" +
-            "-Check for drone's initialization done \n(otherwise, you can't start printing);\r\n" +
+            "-Check for drone's initialization done\n" +
+            "(otherwise, you can't start printing);\r\n" +
             "-Some checks here and there to avoid exceptions;\r\n" +
             "-Added some extra logs;\r\n" +
             "-Added the stop command from Drone too;\n" +
             "-Slow Mode improved;\n" +
             "-Added the max Runtime variable (for the server);\n" +
+            "\n--------------------------------\n" +
             "CHANGELOG VERSION 3.5.4 (04/10/2023):\n" +
             "-Some minor bugs fix;\n" +
             "-Fix start -toggle command;" +
-            "\n--------------------------------\n" +
-            "CHANGELOG VERSION 3.5.3 (02/10/2023)\n +" +
-            "-Recompiling the Drone' script will now check for blocks setup,\n" +
-            "   rather than initializing it;\n" +
-            "-To initialize the drone, you have to run \"init_d\"\n" +
-            "from the station or the drone's PB;\n" +
-            "-If the drone is connected when try to initialize it,\nan exception is risen;"
+            "\n--------------------------------\n"
             ;
 
         string droneVersion;
@@ -306,7 +305,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -495,7 +494,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -535,7 +534,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -564,7 +563,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -602,7 +601,6 @@ namespace IngameScript
         }
         public void Setup()
         {
-            setupAlreadySent = true;
             CustomData();
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<double, float, double, float,
                 MyTuple<double, bool, double>,
@@ -641,7 +639,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -679,7 +677,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -717,7 +715,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -755,7 +753,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -785,7 +783,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -1181,10 +1179,10 @@ namespace IngameScript
                             correctVersion = false;
                             try
                             {
-                                LCDLog.WriteText($"{header} \nDrone Script {droneVersion}\nStation Script {stationVersion}\n{lcd_divider}\n" +
+                                LCDLog.WriteText($"{lcd_header} \nDrone Script {droneVersion}\nStation Script {stationVersion}\n{lcd_divider}\n" +
                                     $"Different Version of scripts found,\n please DONWLOAD THE UPDATED ONE");
                                 Echo("Different Version of scripts found,\n please DONWLOAD THE UPDATED ONE");
-                                LCDStatus.WriteText($"{header}\nDrone Script {droneVersion}\nStation Script {stationVersion}\n{lcd_divider}");
+                                LCDStatus.WriteText($"{lcd_header}\nDrone Script {droneVersion}\nStation Script {stationVersion}\n{lcd_divider}");
                             }
                             catch { }
                             return;
@@ -1323,6 +1321,10 @@ namespace IngameScript
                         {
                             return;
                         }
+                    }
+                    else if(myString == "SetupSent")
+                    {
+                        setupAlreadySent = tuple.Item2;
                     }
                 }
             }

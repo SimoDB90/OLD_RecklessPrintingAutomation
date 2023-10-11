@@ -2,10 +2,15 @@
 -----------
 
 "Robotic Printing Automation" by Reckless
-Current Version: V 3.6.0
+Current Version: V 4.0.0
 Script == STATION
 Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 
+-------------Changelog 4.0.0 (11/10/2023)----------------------------------
+-Fixed some init bugs;
+-Deleted "Slow mode";
+-Huge rework of some logics of the scripts, to slow them down when runtime exceeds some threshold;
+-Added an automatic way to store some variables to calculate ETA, to persist between recompiles;
 -------------Changelog 3.6.0 (06/10/2023)----------------------------------
 -Check for drone's initialization done (otherwise, you can't start printing);
 -Some checks here and there to avoid exceptions;
@@ -20,13 +25,6 @@ Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 -Recompiling the Drone' script will now check for blocks setup, rather than initializing it;
 -To initialize the drone, you have to run "init_d" from the station or the drone's PB;
 -If the drone is connected when try to initialize it, an exception is risen;
--------------Changelog V 3.5.2 (28/09/2023)----------------------------------
--Rename the command "update", with the more intuitive "ignore_all";
--Added the command "ignore1" to skip only the active block welded (like a mini version of "ignore_all");
--You can now run the command "init_d" as well from the drone as from the station; 
--Fixed the ETA (again);
--During Initialization of the drone, if you have 1 (and only 1) tank of hydrogen, the tag will be added automatically,
-	otherwise, tag them;
 
 ------------- Needed blocks for station:------------------------------------
 1)1 LCD "[RPA].LOG"
