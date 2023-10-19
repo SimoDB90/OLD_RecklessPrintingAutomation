@@ -302,7 +302,6 @@ namespace IngameScript
             if (averageRT > 0.75 * maxRTCustom && averageRT <= 0.85 * maxRTCustom)
             {
                 multTicks = multTickList[2];
-                return;
             }
             if (averageRT > 0.85 * maxRTCustom)
             {
@@ -320,14 +319,7 @@ namespace IngameScript
                     IGC.SendBroadcastMessage(BroadcastTag, $"    |DRONE SETUP COMPLETED!\n|Version: {droneVersion}\n|Numbers of active thrusters: {ThrustersInGroup} " +
                         $"\n|Cockpit Found \n|Projector Found\n|Fuel Tank: {tank.Count}\n|Tag used: [{TagCustom}]\n");
                 }
-                else
-                {
-                    printing = false;
-                    IGC.SendBroadcastMessage(BroadcastTag, $" |DRONE SETUP NOT COMPLETED!");
-                }
                 Starter();
-                setupAlreadySent = false;
-                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("SetupSent", setupAlreadySent));
             }
             if (argument.ToLower() == "stop")
             {
@@ -346,6 +338,7 @@ namespace IngameScript
                 foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
                 Runtime.UpdateFrequency = UpdateFrequency.None;
                 printing = false; //stop the print-->for the main
+                Save();
             }
             if (skip)
             {
@@ -1079,16 +1072,7 @@ namespace IngameScript
                                 IGC.SendBroadcastMessage(BroadcastTag, $"    |DRONE SETUP COMPLETED!\n|Version: {droneVersion}\n|Numbers of active thrusters: {ThrustersInGroup} " +
                                     $"\n|Cockpit Found \n|Projector Found\n|Fuel Tank: {tank.Count}\n|Tag used: [{TagCustom}]\n");
                             }
-                            else
-                            {
-                                printing = false;
-                                IGC.SendBroadcastMessage(BroadcastTag, $" |DRONE SETUP NOT COMPLETED!");
-                            }
-                            _myBroadcastListener = IGC.RegisterBroadcastListener(BroadcastTag);
-                            _myBroadcastListener.SetMessageCallback(BroadcastTag);
                             Starter();
-                            setupAlreadySent = false;
-                            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("SetupSent", setupAlreadySent));
                             break;
                     }
                 }

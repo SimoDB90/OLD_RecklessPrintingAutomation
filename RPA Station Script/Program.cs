@@ -37,7 +37,7 @@ namespace IngameScript
         const string lcd_changelog =
             "CHANGELOG VERSION 4.0.2 (19/10/2023):\n" +
             "-Improved Runtime check logic;\n" +
-            "-Improved some logics to initial check on version and init;" +
+            "-Improved some logics to initial check on version and init;\n" +
             "-Fixed a crash if [RPA-Fancy] group is not present;" +
             "\n--------------------------------\n" +
             "CHANGELOG VERSION 4.0.1 (15/10/2023):\n" +
@@ -134,7 +134,7 @@ namespace IngameScript
 
         readonly string commands =
             lcd_divider + "\n" +
-            $"[setup: send CustomData to Drone\n\n" +
+            $"setup: send CustomData to Drone\n\n" +
             $"start x y z -toggle: start the process;\nadd name of blocks as arguments\nto ignore them during printing\nAdd -toggle if you want to toggle\n    whence finished;\n\n" +
             $"stop: stop the process;\n" +
             $"ignore_all: force the weld even\n with missing TB;\n\n" +
@@ -188,7 +188,7 @@ namespace IngameScript
             $"waiting x;\n" +
             $"music -off\n" +
             $"untag_d\n" +
-            $"untag_s]";
+            $"untag_s";
 
         Color lcd_font_colour = new Color(30, 144, 255, 255);
         readonly string[] lcd_spinners = new string[] { "-", "\\", "|", "/" };
