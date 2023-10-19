@@ -9,6 +9,7 @@ Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 -------------Changelog 4.0.2 (19/10/2023)----------------------------------
 -Improved Runtime check logic;
 -Proved some logics to initial check on version and init;
+-Fixed a crash if [RPA-Fancy] group is not present;
 -------------Changelog 4.0.1 (15/10/2023)----------------------------------
 -Bug fix on init of the drone;
 -Bug fix on setup command;
