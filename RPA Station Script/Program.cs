@@ -37,7 +37,8 @@ namespace IngameScript
         const string lcd_changelog =
             "CHANGELOG VERSION 4.0.2 (19/10/2023):\n" +
             "-Improved Runtime check logic;\n" +
-            "-Proved some logics to initial check on version and init;" +
+            "-Improved some logics to initial check on version and init;" +
+            "-Fixed a crash if [RPA-Fancy] group is not present;" +
             "\n--------------------------------\n" +
             "CHANGELOG VERSION 4.0.1 (15/10/2023):\n" +
             "-Bug fix on init of the drone;\n" +
