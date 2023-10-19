@@ -1126,20 +1126,26 @@ namespace IngameScript
         }
         public void DeactivateAll()
         {
-            Rotor.Enabled = false;
-            foreach (var lcd in FancyLCDList)
+            try
             {
-                lcd.Enabled = false;
+                Rotor.Enabled = false;
+                foreach (var lcd in FancyLCDList)
+                {
+                    lcd.Enabled = false;
+                }
+                foreach (var welder in WelderList)
+                {
+                    welder.Enabled = false;
+                }
+                foreach (var light in FancyLightList)
+                {
+                    light.Enabled = false;
+                }
+                foreach (var sound in FancySoundList) { sound.Volume = 0f; sound.Enabled = false; }
             }
-            foreach (var welder in WelderList)
+            catch
             {
-                welder.Enabled = false;
             }
-            foreach (var light in FancyLightList)
-            {
-                light.Enabled = false;
-            }
-            foreach (var sound in FancySoundList) { sound.Volume = 0f; sound.Enabled = false; }
         }
         public void ImListening()
         {
@@ -1219,27 +1225,27 @@ namespace IngameScript
                     }
                 }
                 //DEBUG LCD
-                if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string>)
-                {
-                    try
-                    {
-                        var tuple = (MyTuple<string, string>)myIGCMessage_fromDrone.Data;
-                        string deb = tuple.Item1;
-                        var message = tuple.Item2;
-                        if (deb == "Debug") debug.WriteText(message);
-                        //var tuple = (MyTuple<string, string, string, string, string>)myIGCMessage_fromDrone.Data;
-                        //string checkTime = tuple.Item1;
-                        //string name = tuple.Item2;
-                        //string integrity = tuple.Item3;
-                        //string newIntegrity = tuple.Item4;
-                        //string angle = tuple.Item5;
-                        //debug.WriteText($"DEBUG\nStuck Time check: {checkTime}\nBlock Name: {name}\n" +
-                        //    $"Integrity: {integrity}\nNewIntegrity: {newIntegrity}\nAngle: {angle}");
+                //if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string>)
+                //{
+                //    try
+                //    {
+                //        var tuple = (MyTuple<string, string>)myIGCMessage_fromDrone.Data;
+                //        string deb = tuple.Item1;
+                //        var message = tuple.Item2;
+                //        if (deb == "Debug") debug.WriteText(message);
+                //        //var tuple = (MyTuple<string, string, string, string, string>)myIGCMessage_fromDrone.Data;
+                //        //string checkTime = tuple.Item1;
+                //        //string name = tuple.Item2;
+                //        //string integrity = tuple.Item3;
+                //        //string newIntegrity = tuple.Item4;
+                //        //string angle = tuple.Item5;
+                //        //debug.WriteText($"DEBUG\nStuck Time check: {checkTime}\nBlock Name: {name}\n" +
+                //        //    $"Integrity: {integrity}\nNewIntegrity: {newIntegrity}\nAngle: {angle}");
 
-                    }
-                    catch
-                    { }
-                }
+                //    }
+                //    catch
+                //    { }
+                //}
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is string)
                 {
                     string data_log = myIGCMessage_fromDrone.Data.ToString();
@@ -1266,15 +1272,21 @@ namespace IngameScript
                             {
                                 welder.Enabled = true;
                             }
-                            foreach (var lcd in FancyLCDList)
+                            try
                             {
-                                lcd.Enabled = true;
+                                foreach (var lcd in FancyLCDList)
+                                {
+                                    lcd.Enabled = true;
+                                }
+                                foreach (var light in FancyLightList)
+                                {
+                                    light.Enabled = true;
+                                }
+                                Music();
                             }
-                            foreach (var light in FancyLightList)
+                            catch
                             {
-                                light.Enabled = true;
                             }
-                            Music();
                         }
                         else if (!activation)
                         {
