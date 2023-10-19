@@ -177,6 +177,8 @@ namespace IngameScript
             Echo("Drone Log:\n");
             ///CHECK SETUP//////////////////////
             CustomData();
+            setupAlreadySent = false;
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("SetupSent", setupAlreadySent));
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("droneVersion", droneVersion));
             initializedRequired = CheckInit();
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("initRequired", initializedRequired));
