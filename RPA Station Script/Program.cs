@@ -1,4 +1,4 @@
-﻿using EmptyKeys.UserInterface.Generated.DataTemplatesContractsDataGrid_Bindings;
+using EmptyKeys.UserInterface.Generated.DataTemplatesContractsDataGrid_Bindings;
 using Sandbox.Game.Entities;
 using Sandbox.Game.EntityComponents;
 using Sandbox.Game.Lights;
@@ -26,37 +26,32 @@ using VRage.Game.ModAPI.Ingame.Utilities;
 using VRage.Game.ObjectBuilders.Definitions;
 using VRageMath;
 using VRageRender.Messages;
+using static VRage.Game.MyObjectBuilder_BehaviorTreeDecoratorNode;
+using static VRage.Game.MyObjectBuilder_Toolbar;
 
 namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        /// <summary>
-        /// "Robotic Printing Automation" by Reckless
-        /// Current Version: V 3.6.0
-        /// Script == Station
-        /// Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
-        /// </summary>
-
-        readonly string stationVersion = "V: 3.6.0";
+        readonly string stationVersion = "V: 4.0.2";
         const string lcd_changelog =
-            "CHANGELOG VERSION 3.6.0 (06/10/2023)\r\n" +
-            "-Check for drone's initialization done \n(otherwise, you can't start printing);\r\n" +
-            "-Some checks here and there to avoid exceptions;\r\n" +
-            "-Added some extra logs;\r\n" +
-            "-Added the stop command from Drone too;\n" +
-            "-Slow Mode improved;\n" +
-            "-Added the max Runtime variable (for the server);\n" +
-            "CHANGELOG VERSION 3.5.4 (04/10/2023):\n" +
-            "-Some minor bugs fix;\n" +
-            "-Fix start -toggle command;" +
+            "CHANGELOG VERSION 4.0.2 (19/10/2023):\n" +
+            "-Improved Runtime check logic;\n" +
+            "-Improved some logics to initial check on version and init;\n" +
+            "-Fixed a crash if [RPA-Fancy] group is not present;" +
             "\n--------------------------------\n" +
-            "CHANGELOG VERSION 3.5.3 (02/10/2023)\n +" +
-            "-Recompiling the Drone' script will now check for blocks setup,\n" +
-            "   rather than initializing it;\n" +
-            "-To initialize the drone, you have to run \"init_d\"\n" +
-            "from the station or the drone's PB;\n" +
-            "-If the drone is connected when try to initialize it,\nan exception is risen;"
+            "CHANGELOG VERSION 4.0.1 (15/10/2023):\n" +
+            "-Bug fix on init of the drone;\n" +
+            "-Bug fix on setup command;" +
+            "\n--------------------------------\n" +
+            "CHANGELOG VERSION 4.0.0 (11/10/2023):\n" +
+            "-Fixed some initi bugs;\n" +
+            "-Deleted \"Slow mode\";\n" +
+            "-Huge rework of some logics of the scripts,\n" +
+            "to slow them down when runtime exceeds thresholds;\n" +
+            "-Added an automatic way to store some variables,\n" +
+            " to calculate ETA, to persist through recompiles;" +
+            "\n--------------------------------\n"
             ;
 
         string droneVersion;
@@ -120,9 +115,6 @@ namespace IngameScript
         //max movement of the drone
         const double DroneMovDistanceDefault = 1.7;
         double DroneMovDistanceCustom;
-        //slow mode
-        const bool slowModeDefault = false;
-        bool slowModeCustom;
         const double maxRTDefault = 0.5; //max runtime that server allows to have per player
         double maxRTCustom;
         // welde while moving bool
@@ -142,7 +134,7 @@ namespace IngameScript
 
         readonly string commands =
             lcd_divider + "\n" +
-            $"[setup: send CustomData to Drone\n\n" +
+            $"setup: send CustomData to Drone\n\n" +
             $"start x y z -toggle: start the process;\nadd name of blocks as arguments\nto ignore them during printing\nAdd -toggle if you want to toggle\n    whence finished;\n\n" +
             $"stop: stop the process;\n" +
             $"ignore_all: force the weld even\n with missing TB;\n\n" +
@@ -196,13 +188,14 @@ namespace IngameScript
             $"waiting x;\n" +
             $"music -off\n" +
             $"untag_d\n" +
-            $"untag_s]";
+            $"untag_s";
 
         Color lcd_font_colour = new Color(30, 144, 255, 255);
         readonly string[] lcd_spinners = new string[] { "-", "\\", "|", "/" };
         double lcd_spinner_status;
         const string lcd_divider = "--------------------------------";
         const string lcd_title = "  RECKLESS PRINTING AUTOMATION  ";
+        const string lcd_status_title = "     RPA Status Report      ";
         const string lcd_command_title = "COMMANDS GUIDE:";
         const string lcd_version = "RPA ";
 
@@ -231,6 +224,7 @@ namespace IngameScript
             header = HeaderCreation();
             CustomData();
             SetupBlocks();
+            setupAlreadySent = false;
             if (setupCompleted)
             {
                 SetupActionDict(); // load the dictionary with actions for the commands of the main
@@ -252,7 +246,6 @@ namespace IngameScript
             RotorSpeedCustom = _ini.Get("data", "RotorSpeed").ToSingle(RotorSpeedDefault);
             DynamicSpeedCustom = _ini.Get("data", "DynamicSpeed(RPM)").ToSingle(DynamicSpeedDefault);
             maxDistanceStopCustom = _ini.Get("data", "MaxDistanceStop(meters)").ToDouble(maxDistanceStopDefault);
-            slowModeCustom = _ini.Get("data", "SlowMode").ToBoolean(slowModeDefault);
             maxRTCustom = _ini.Get("data", "MaxServerRuntime(ms)").ToDouble(maxRTDefault);
 
             if (!wasParsed)
@@ -267,7 +260,6 @@ namespace IngameScript
             _ini.Set("data", "RotorSpeed", RotorSpeedCustom);
             _ini.Set("data", "DynamicSpeed(RPM)", DynamicSpeedCustom);
             _ini.Set("data", "MaxDistanceStop(meters)", maxDistanceStopCustom);
-            _ini.Set("data", "SlowMode", slowModeCustom);
             _ini.Set("data", "MaxServerRuntime(ms)", maxRTCustom);
 
             Me.CustomData = _ini.ToString();
@@ -303,16 +295,15 @@ namespace IngameScript
 
         public void IgnoreAll()
         {
-            if(correctVersion && setupAlreadySent && !initializedRequired)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 IGC.SendBroadcastMessage(BroadcastTag, "ignore_all");
                 Echo($"Sending message: ignore_all");
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
-                return;
             }
             else if (!correctVersion)
             {
@@ -331,7 +322,7 @@ namespace IngameScript
         }
         public void InitDrone()
         {
-            if(correctVersion)
+            if (correctVersion)
             {
                 IGC.SendBroadcastMessage(BroadcastTag, "init_d");
                 LCDLog.WriteText($"{header} \nInit Drone: blocks tagged as drone's CD");
@@ -499,7 +490,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -539,7 +530,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -568,7 +559,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -606,16 +597,15 @@ namespace IngameScript
         }
         public void Setup()
         {
-            setupAlreadySent = true;
             CustomData();
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<double, float, double, float,
-                MyTuple<double, bool, bool, double>,
+                MyTuple<double, bool, double>,
                 MyTuple<MatrixD, int>>(
                 WaitingCustom,
                 DynamicSpeedCustom,
                 DroneMovDistanceCustom,
                 RotorSpeedCustom,
-                new MyTuple<double, bool, bool, double>(maxDistanceStopCustom, slowModeCustom, weldWhileMovingCustom, maxRTCustom),
+                new MyTuple<double, bool, double>(maxDistanceStopCustom, weldWhileMovingCustom, maxRTCustom),
                 new MyTuple<MatrixD, int>(
                 rotorMatrix, welderSign))
                 );
@@ -645,7 +635,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -683,7 +673,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -721,7 +711,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -759,7 +749,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -789,7 +779,7 @@ namespace IngameScript
             }
             else if (!setupAlreadySent)
             {
-                LCDLog.WriteText($"{header} \nRUN SETUP AND (IF NOT IN SLOW MODE) ALIGN FIRST");
+                LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
                 return;
             }
@@ -869,7 +859,7 @@ namespace IngameScript
             antenna.EnableBroadcasting = true;
             antenna.Radius = 1000;
 
-            
+
             //LCD STATUS SETUP
             try
             {
@@ -1095,6 +1085,15 @@ namespace IngameScript
                 $"{lcd_divider}";
             return output;
         }
+        public string StatusLCDHeaderCreation()
+        {
+            //lcd_spinner_status += Runtime.TimeSinceLastRun.TotalSeconds;
+            //if (lcd_spinner_status > lcd_spinners.Length) { lcd_spinner_status = 0; }
+            string spinner = lcd_spinners[(int)lcd_spinner_status];
+            string output = $"{lcd_divider}\n{spinner + spinner + lcd_status_title + spinner + spinner}\n" +
+                $"{lcd_divider}";
+            return output;
+        }
         /// <summary>
         /// Find the farest welder from thew rotor to decide the direction
         /// of the alignment
@@ -1128,27 +1127,32 @@ namespace IngameScript
         }
         public void DeactivateAll()
         {
-            Rotor.Enabled = false;
-            foreach (var lcd in FancyLCDList)
+            try
             {
-                lcd.Enabled = false;
+                Rotor.Enabled = false;
+                foreach (var lcd in FancyLCDList)
+                {
+                    lcd.Enabled = false;
+                }
+                foreach (var welder in WelderList)
+                {
+                    welder.Enabled = false;
+                }
+                foreach (var light in FancyLightList)
+                {
+                    light.Enabled = false;
+                }
+                foreach (var sound in FancySoundList) { sound.Volume = 0f; sound.Enabled = false; }
             }
-            foreach (var welder in WelderList)
+            catch
             {
-                welder.Enabled = false;
             }
-            foreach (var light in FancyLightList)
-            {
-                light.Enabled = false;
-            }
-            foreach (var sound in FancySoundList) { sound.Volume = 0f; sound.Enabled = false; }
         }
         public void ImListening()
         {
             while (_myBroadcastListener_station.HasPendingMessage)
             {
                 var myIGCMessage_fromDrone = _myBroadcastListener_station.AcceptMessage();
-
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string>)
                 {
                     var tuple = (MyTuple<string, string>)myIGCMessage_fromDrone.Data;
@@ -1163,7 +1167,7 @@ namespace IngameScript
                             correctVersion = true;
                             try
                             {
-                                LCDStatus.WriteText($"{header} \nDrone Script {droneVersion}\nStation Script {stationVersion}\n\nDETECTED CORRECT VERSIONS\n" +
+                                LCDStatus.WriteText($"{lcd_header} \nDrone Script   {droneVersion}\nStation Script {stationVersion}\n\nDETECTED CORRECT VERSIONS\n" +
                                                 $"{lcd_divider}\n{lcd_divider}\n" +
                                                 $"{lcd_changelog}");
                             }
@@ -1177,16 +1181,16 @@ namespace IngameScript
                             correctVersion = false;
                             try
                             {
-                                LCDLog.WriteText($"{header} \n{droneVersion}\n{stationVersion}\n{lcd_divider}\n" +
+                                LCDLog.WriteText($"{lcd_header} \nDrone Script {droneVersion}\nStation Script {stationVersion}\n{lcd_divider}\n" +
                                     $"Different Version of scripts found,\n please DONWLOAD THE UPDATED ONE");
                                 Echo("Different Version of scripts found,\n please DONWLOAD THE UPDATED ONE");
-                                LCDStatus.WriteText($"{header}\nDrone Script {droneVersion}\nStation Script {stationVersion}\n{lcd_divider}");
+                                LCDStatus.WriteText($"{lcd_header}\nDrone Script {droneVersion}\nStation Script {stationVersion}\n{lcd_divider}");
                             }
                             catch { }
                             return;
                         }
                     }
-                    else if (log == "ActiveWelding")
+                    if (log == "ActiveWelding")
                     {
                         try
                         {
@@ -1194,8 +1198,17 @@ namespace IngameScript
                         }
                         catch { }
                     }
-
-                    else
+                    if (log == "LogWriting")
+                    {
+                        LCDLog.WriteText($"{HeaderCreation()} \n{status}");
+                        //continues stream of rotorHead infos
+                        if (activation)
+                        {
+                            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD>(
+                                                "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix));
+                        }
+                    }
+                    if (log == "StatusWriting")
                     {
 
                         string stuckedY = "Looking for the Block";
@@ -1206,34 +1219,34 @@ namespace IngameScript
                         else if (Rotor.TargetVelocityRPM == RotorSpeedCustom) stuckStatus = stuckedN;
                         else if (Rotor.TargetVelocityRPM == 0) stuckStatus = "Welding";
                         else if (Rotor.TargetVelocityRPM == DynamicSpeedCustom) stuckStatus = fastTrip;
-                        LCDLog.WriteText($"{HeaderCreation()} \n{log}");
-                        LCDStatus.WriteText($"{status}\n{lcd_divider}\n         WELDERS STATUS\n{lcd_divider}\n{stuckStatus}");
-                        //continues stream of rotorHead infos
-                        if (activation)
-                        {
-                            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD>(
-                                                "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix));
-                        }
+
+                        LCDStatus.WriteText($"{StatusLCDHeaderCreation()} \n{status}\n{lcd_divider}\n         WELDERS STATUS\n{lcd_divider}\n{stuckStatus}");
+
                         Echo(compact_commands);
                     }
                 }
                 //DEBUG LCD
-                if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string, string, string, string>)
-                {
-                    try
-                    {
-                        var tuple = (MyTuple<string, string, string, string, string>)myIGCMessage_fromDrone.Data;
-                        string checkTime = tuple.Item1;
-                        string name = tuple.Item2;
-                        string integrity = tuple.Item3;
-                        string newIntegrity = tuple.Item4;
-                        string angle = tuple.Item5;
-                        debug.WriteText($"DEBUG\nStuck Time check: {checkTime}\nBlock Name: {name}\n" +
-                            $"Integrity: {integrity}\nNewIntegrity: {newIntegrity}\nAngle: {angle}");
-                    }
-                    catch
-                    { }
-                }
+                //if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string>)
+                //{
+                //    try
+                //    {
+                //        var tuple = (MyTuple<string, string>)myIGCMessage_fromDrone.Data;
+                //        string deb = tuple.Item1;
+                //        var message = tuple.Item2;
+                //        if (deb == "Debug") debug.WriteText(message);
+                //        //var tuple = (MyTuple<string, string, string, string, string>)myIGCMessage_fromDrone.Data;
+                //        //string checkTime = tuple.Item1;
+                //        //string name = tuple.Item2;
+                //        //string integrity = tuple.Item3;
+                //        //string newIntegrity = tuple.Item4;
+                //        //string angle = tuple.Item5;
+                //        //debug.WriteText($"DEBUG\nStuck Time check: {checkTime}\nBlock Name: {name}\n" +
+                //        //    $"Integrity: {integrity}\nNewIntegrity: {newIntegrity}\nAngle: {angle}");
+
+                //    }
+                //    catch
+                //    { }
+                //}
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is string)
                 {
                     string data_log = myIGCMessage_fromDrone.Data.ToString();
@@ -1260,22 +1273,25 @@ namespace IngameScript
                             {
                                 welder.Enabled = true;
                             }
-                            foreach (var lcd in FancyLCDList)
+                            try
                             {
-                                lcd.Enabled = true;
+                                foreach (var lcd in FancyLCDList)
+                                {
+                                    lcd.Enabled = true;
+                                }
+                                foreach (var light in FancyLightList)
+                                {
+                                    light.Enabled = true;
+                                }
+                                Music();
                             }
-                            foreach (var light in FancyLightList)
+                            catch
                             {
-                                light.Enabled = true;
                             }
-                            Music();
                         }
                         else if (!activation)
                         {
                             DeactivateAll();
-                            IGC.DisableBroadcastListener(_myBroadcastListener_station);
-                            _myBroadcastListener_station = IGC.RegisterBroadcastListener(BroadcastTag);
-                            _myBroadcastListener_station.SetMessageCallback(BroadcastTag);
                         }
                     }
                     else if (myString == "weldersToggle")
@@ -1300,9 +1316,6 @@ namespace IngameScript
                         //Echo($"setup: {DroneSetup}");
                         if (!DroneSetup)
                         {
-                            IGC.DisableBroadcastListener(_myBroadcastListener_station);
-                            _myBroadcastListener_station = IGC.RegisterBroadcastListener(BroadcastTag);
-                            _myBroadcastListener_station.SetMessageCallback(BroadcastTag);
                             return;
                         }
                     }
@@ -1311,11 +1324,12 @@ namespace IngameScript
                         initializedRequired = tuple.Item2;
                         if (initializedRequired)
                         {
-                            IGC.DisableBroadcastListener(_myBroadcastListener_station);
-                            _myBroadcastListener_station = IGC.RegisterBroadcastListener(BroadcastTag);
-                            _myBroadcastListener_station.SetMessageCallback(BroadcastTag);
                             return;
                         }
+                    }
+                    else if (myString == "SetupSent")
+                    {
+                        setupAlreadySent = tuple.Item2;
                     }
                 }
             }
