@@ -25,9 +25,6 @@ using VRage.Game.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRage.Game.ObjectBuilders.Definitions;
 using VRageMath;
-using VRageRender.Messages;
-using static VRage.Game.MyObjectBuilder_BehaviorTreeDecoratorNode;
-using static VRage.Game.MyObjectBuilder_Toolbar;
 
 namespace IngameScript
 {
