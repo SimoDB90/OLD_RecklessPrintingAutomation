@@ -868,7 +868,7 @@ namespace IngameScript
             if (imMoving)
             {
                 Wait = ImWait;
-                firstRotation = false;
+                //firstRotation = false;
                 if (!weldWhileMoving)
                 {
                     weldersToggleOn = false;

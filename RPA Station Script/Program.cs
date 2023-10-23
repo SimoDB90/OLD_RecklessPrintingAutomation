@@ -344,7 +344,7 @@ namespace IngameScript
                 }
                 else
                 {
-                    string changelog = lcd_header + "\n" + lcd_printing_version + lcd_changelog;
+                    string changelog = lcd_header + "\n" + lcd_changelog;
                     LCDStatus.WriteText(CentreText(changelog, 32));
                 }
             }
