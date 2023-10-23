@@ -2,10 +2,12 @@ R e a d m e
 -----------
 
 "Robotic Printing Automation" by Reckless
-Current Version: V 4.0.2
+Current Version: V 4.0.3
 Script == STATION
 Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 
+-------------Changelog 4.0.3 (23/10/2023)----------------------------------
+-Fixed a bug with "weldWhileMoving";
 -------------Changelog 4.0.2 (19/10/2023)----------------------------------
 -Improved Runtime check logic;
 -Improved some logics to initial check on version and init;
@@ -18,13 +20,7 @@ Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 -Deleted "Slow mode";
 -Huge rework of some logics of the scripts, to slow them down when runtime exceeds some threshold;
 -Added an automatic way to store some variables to calculate ETA, to persist between recompiles;
--------------Changelog 3.6.0 (06/10/2023)----------------------------------
--Check for drone's initialization done (otherwise, you can't start printing);
--Some checks here and there to avoid exceptions;
--Added some extra logs;
--Slow Mode improved
--Added the max Runtime variable (for the server);
--Added the stop command from Drone too;
+
 
 ------------- Needed blocks for station:------------------------------------
 1)1 LCD "[RPA].LOG"

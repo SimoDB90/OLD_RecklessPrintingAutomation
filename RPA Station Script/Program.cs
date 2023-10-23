@@ -30,8 +30,10 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        readonly string stationVersion = "V: 4.0.2";
+        readonly string stationVersion = "V: 4.0.3";
         const string lcd_changelog =
+            "CHANGELOG VERSION 4.0.3 (23/10/2023):\n" +
+            "-Fixed a bug with \"weldWhileMoving\";\n" +
             "CHANGELOG VERSION 4.0.2 (19/10/2023):\n" +
             "-Improved Runtime check logic;\n" +
             "-Improved some logics to initial check on version and init;\n" +
