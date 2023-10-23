@@ -29,7 +29,7 @@ namespace IngameScript
     partial class Program : MyGridProgram
     {
 
-        readonly string droneVersion = "V: 4.0.2";
+        readonly string droneVersion = "V: 4.0.3";
         readonly MyIni _ini = new MyIni();
         double Wait;
         double ImWait = 7;
@@ -868,7 +868,7 @@ namespace IngameScript
             if (imMoving)
             {
                 Wait = ImWait;
-                firstRotation = false;
+                //firstRotation = false;
                 if (!weldWhileMoving)
                 {
                     weldersToggleOn = false;
