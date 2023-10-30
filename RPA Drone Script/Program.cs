@@ -29,7 +29,7 @@ namespace IngameScript
     partial class Program : MyGridProgram
     {
 
-        readonly string droneVersion = "V: 4.0.0";
+        readonly string droneVersion = "V: 4.0.3";
         readonly MyIni _ini = new MyIni();
         double Wait;
         double ImWait = 7;
@@ -172,41 +172,49 @@ namespace IngameScript
             lcd_header = $"{lcd_divider}\n{lcd_title}\n{lcd_divider}";
             start = Me.GetPosition();
             Echo("Drone Log:\n");
-            ///Listener (Antenna Inter Grid Communication)
-            _myBroadcastListener = IGC.RegisterBroadcastListener(BroadcastTag);
-            _myBroadcastListener.SetMessageCallback(BroadcastTag);
-            ////////////////////////////////////////
             ///CHECK SETUP//////////////////////
             CustomData();
+            setupAlreadySent = false;
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("SetupSent", setupAlreadySent));
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("droneVersion", droneVersion));
             initializedRequired = CheckInit();
-            LoadStoredData();
-            profiler = new Profiler(this.Runtime);
-            timerSM = new SimpleTimerSM(this, SequenceConditionalRotorSpeed());
-            statusLCDStateMachine = new SimpleTimerSM(this, sequence: StatusLCD());
-            
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("initRequired", initializedRequired));
+            if (!initializedRequired) LoadStoredData();
+
+            else
+            {
+                totRemaining = 0;
+                totTime = 0;
+                averageTime = 0;
+                builtBlocks = 0;
+                averageBlocks = 0;
+                refreshBlocks = 0;
+                sectionsBuilt = 0;
+                ignoredBlocks = 0;
+            }
         }
-        public void Save()
+        public void SaveVariables()
         {
-            Storage = "";
             Storage = string.Join(";",
-                totBlocks.ToString() ?? "0",
-                totRemaining.ToString() ?? "0",
-                totTime.ToString() ?? "0",
-                averageTime.ToString() ?? "0",
-                builtBlocks.ToString() ?? "0",
-                averageBlocks.ToString() ?? "0",
-                refreshBlocks.ToString() ?? "0",
-                sectionsBuilt.ToString() ?? "0",
-                ignoredBlocks.ToString() ?? "0"
+                totBlocks.ToString(),
+                totRemaining.ToString(),
+                totTime.ToString(),
+                averageTime.ToString(),
+                builtBlocks.ToString(),
+                averageBlocks.ToString(),
+                refreshBlocks.ToString(),
+                sectionsBuilt.ToString(),
+                ignoredBlocks.ToString()
                 );
         }
         public void LoadStoredData()
         {
-            string[] storedData = Storage.Split(';');
-            int[] valuesRetrieved;
-            valuesRetrieved = new int[storedData.Length];
-            if (Storage.Length>=2)
+
+            if (Storage != null && Storage.Length == 9)
             {
+                string[] storedData = Storage.Split(';');
+                int[] valuesRetrieved;
+                valuesRetrieved = new int[storedData.Length];
                 for (int i = 0; i < storedData.Length; i++)
                 {
                     int.TryParse(storedData[i], out valuesRetrieved[i]);
@@ -312,6 +320,7 @@ namespace IngameScript
                 foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
                 Runtime.UpdateFrequency = UpdateFrequency.None;
                 printing = false; //stop the print-->for the main
+                SaveVariables();
             }
             if (skip)
             {
@@ -324,6 +333,7 @@ namespace IngameScript
                 if (!checkDistance)
                 {
                     skip = false;
+                    //printing = true;
                 }
 
             }
@@ -418,32 +428,57 @@ namespace IngameScript
             foreach (var gyro in imGyroList) { gyro.Enabled = true; }
 
             //hydrogen tank
-            GridTerminalSystem.GetBlocksOfType(tank, x => x.CustomName.Contains(TagCustom));
-            if(tank!=null && tank.Count > 0)
+            MyDefinitionId HydrogenGasId = MyDefinitionId.Parse("MyObjectBuilder_GasProperties/Hydrogen");
+            MyResourceSinkComponent HydroType;
+            GridTerminalSystem.GetBlocksOfType(tank, x => x.CustomName.Contains(TagCustom)
+            
+            );
+            int hydroTankCount = 0;
+            if (tank != null && tank.Count > 0)
             {
-                _ini.Set("Do No Change lines below", "Tank", tank.Count);
+                foreach (var t in tank)
+                {
+                    HydroType = t.Components.Get<MyResourceSinkComponent>();
+                    if (HydroType!=null && HydroType.AcceptedResources.Contains(HydrogenGasId))
+                    {
+                        hydroTankCount++;
+                    }
+                }
+                _ini.Set("Do No Change lines below", "Tank", hydroTankCount);
             }
             if (tank == null || tank.Count == 0)
             {
                 GridTerminalSystem.GetBlocksOfType(tank);
-                if (tank != null && tank.Count > 1)
+                List<IMyGasTank> tempList = new List<IMyGasTank>();
+                if (tank!=null)
+                {
+                    foreach (var t in tank)
+                    {
+                        HydroType = t.Components.Get<MyResourceSinkComponent>();
+                        if(HydroType!=null && HydroType.AcceptedResources.Contains(HydrogenGasId))
+                        {
+                            tempList.Add(t);
+                        }
+                    } 
+                }
+                if (tempList != null && tempList.Count > 1)
                 {
                     Echo("SETUP NOT COMPLETED: If you have more than 1 tank, tag them");
                     IGC.SendBroadcastMessage(BroadcastTag, $"{lcd_header}\n   SETUP NOT COMPLETED:\nIf you have more than 1 tank, tag them");
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("DroneSetup", setupCompleted));
                     return;
                 }
-                if (tank == null || tank.Count == 0)
+                if (tempList == null || tempList.Count == 0)
                 {
                     Echo("SETUP NOT COMPLETED: Add one Fuel tank for your Tug beratna.. come on you weirdo");
                     IGC.SendBroadcastMessage(BroadcastTag, $"{lcd_header}\n   SETUP NOT COMPLETED:\nAdd one Fuel tank for your Tug beratna.. come on you weirdo");
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("DroneSetup", setupCompleted));
                     return;
                 }
-                if (tank != null && tank.Count == 1)
+                if (tempList != null && tempList.Count == 1)
                 {
                     IMyGasTank Tank;
-                    Tank = tank[0];
+                    Tank = tempList[0];
                     if (!Tank.CustomName.Contains(TagCustom))
                     {
                         Tank.CustomName += "." + TagCustom;
@@ -937,7 +972,7 @@ namespace IngameScript
                     IGC.SendBroadcastMessage(BroadcastTag, "\nSafety Distance Reached. Tug stopped.");
                     activation = false;
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
-                    Save();
+                    SaveVariables();
                 }
             }
         }
@@ -1019,7 +1054,7 @@ namespace IngameScript
                             foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
                             Runtime.UpdateFrequency = UpdateFrequency.None;
                             printing = false; //stop the print-->for the main
-                            Save();
+                            SaveVariables();
                             break;
 
                         case "skip":
