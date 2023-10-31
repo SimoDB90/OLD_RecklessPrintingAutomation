@@ -30,28 +30,22 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        readonly string stationVersion = "V: 4.0.3";
+        readonly string stationVersion = "V: 4.0.4";
         const string lcd_changelog =
+            "CHANGELOG VERSION 4.0.4 (x/10/2023):\n" +
+            "-skip command now is \"skip -print\", to start \n" +
+            "printing after movement, or \"skip\" to NOT \n" +
+            "start printing after movement;\r\n" +
+            "-Only hydro tanks are now considered as drone's tanks;\r\n" +
+            "-Better and more consistent storage of printing variables;\n" +
+            "--------------------------------\n" +
             "CHANGELOG VERSION 4.0.3 (23/10/2023):\n" +
             "-Fixed a bug with \"weldWhileMoving\";\n" +
             "--------------------------------\n" +
             "CHANGELOG VERSION 4.0.2 (19/10/2023):\n" +
             "-Improved Runtime check logic;\n" +
             "-Improved some logics to initial check on version and init;\n" +
-            "-Fixed a crash if [RPA-Fancy] group is not present;" +
-            "\n--------------------------------\n" +
-            "CHANGELOG VERSION 4.0.1 (15/10/2023):\n" +
-            "-Bug fix on init of the drone;\n" +
-            "-Bug fix on setup command;" +
-            "\n--------------------------------\n" +
-            "CHANGELOG VERSION 4.0.0 (11/10/2023):\n" +
-            "-Fixed some initi bugs;\n" +
-            "-Deleted \"Slow mode\";\n" +
-            "-Huge rework of some logics of the scripts,\n" +
-            "to slow them down when runtime exceeds thresholds;\n" +
-            "-Added an automatic way to store some variables,\n" +
-            " to calculate ETA, to persist through recompiles;" +
-            "\n--------------------------------\n"
+            "-Fixed a crash if [RPA-Fancy] group is not present;"
             ;
 
         string droneVersion;
@@ -63,7 +57,7 @@ namespace IngameScript
 
         bool setupCompleted;
         readonly string BroadcastTag = "channel_1";
-        IMyBroadcastListener _myBroadcastListener_station;
+        readonly IMyBroadcastListener _myBroadcastListener_station;
         // Wait variable
         double WaitingCustom;
         const double WaitingDefault = 7;
@@ -146,7 +140,7 @@ namespace IngameScript
             $"guide -off: in depth commands\nAdd -off only to delete\nthe LCD from the guide\n\n" +
             $"align: force the tug to \nalign to the rotor\n\n" +
             $"projector: turn on/off the \nDrone's projector\n\n" +
-            $"skip: force drone to move back;\n\n" +
+            $"skip -printing: force drone to move back;\nAdd -printing if you want to\nprint after movement\n\n" +
             $"toggle x y ...: toggle on \nall blocks (no Epsteins or Tools);\nAdd x y ... to IGNORE THESE BLOCKS\n\n" +
             $"hudlcd:toggle -reset: toggle on/off\n the hudlcd.\nAdd -reset only to reset it;\n\n" +
             $"changelog -off: print the changelog on the STATUS LCD;\nAdd -off to delete it;\n\n" +
@@ -175,7 +169,7 @@ namespace IngameScript
             $"guide -off\n" +
             $"align\n" +
             $"projector\n" +
-            $"skip\n" +
+            $"skip -printing\n" +
             $"toggle x y z ...\n" +
             $"hudlcd:toggle -reset\n" +
             $"changelog -off\n" +
@@ -523,9 +517,12 @@ namespace IngameScript
         }
         public void Skip()
         {
+            bool printAfetMove = _commandLine.Switch("print");
             if (correctVersion && setupAlreadySent && !initializedRequired)
             {
-                IGC.SendBroadcastMessage(BroadcastTag, "skip");
+                if (printAfetMove) { IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("skip", true)); }
+                else { IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("skip", false)); }
+                
                 Echo($"Sending message: skip\n{commands}");
             }
             else if (!setupAlreadySent)
