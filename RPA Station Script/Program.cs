@@ -25,16 +25,25 @@ using VRage.Game.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRage.Game.ObjectBuilders.Definitions;
 using VRageMath;
-using VRageRender.Messages;
-using static VRage.Game.MyObjectBuilder_BehaviorTreeDecoratorNode;
-using static VRage.Game.MyObjectBuilder_Toolbar;
 
 namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        readonly string stationVersion = "V: 4.0.0";
+        readonly string stationVersion = "V: 4.0.3";
         const string lcd_changelog =
+            "CHANGELOG VERSION 4.0.3 (23/10/2023):\n" +
+            "-Fixed a bug with \"weldWhileMoving\";\n" +
+            "--------------------------------\n" +
+            "CHANGELOG VERSION 4.0.2 (19/10/2023):\n" +
+            "-Improved Runtime check logic;\n" +
+            "-Improved some logics to initial check on version and init;\n" +
+            "-Fixed a crash if [RPA-Fancy] group is not present;" +
+            "\n--------------------------------\n" +
+            "CHANGELOG VERSION 4.0.1 (15/10/2023):\n" +
+            "-Bug fix on init of the drone;\n" +
+            "-Bug fix on setup command;" +
+            "\n--------------------------------\n" +
             "CHANGELOG VERSION 4.0.0 (11/10/2023):\n" +
             "-Fixed some initi bugs;\n" +
             "-Deleted \"Slow mode\";\n" +
@@ -42,19 +51,6 @@ namespace IngameScript
             "to slow them down when runtime exceeds thresholds;\n" +
             "-Added an automatic way to store some variables,\n" +
             " to calculate ETA, to persist through recompiles;" +
-            "\n--------------------------------\n" +
-            "CHANGELOG VERSION 3.6.0 (06/10/2023)\r\n" +
-            "-Check for drone's initialization done\n" +
-            "(otherwise, you can't start printing);\r\n" +
-            "-Some checks here and there to avoid exceptions;\r\n" +
-            "-Added some extra logs;\r\n" +
-            "-Added the stop command from Drone too;\n" +
-            "-Slow Mode improved;\n" +
-            "-Added the max Runtime variable (for the server);\n" +
-            "\n--------------------------------\n" +
-            "CHANGELOG VERSION 3.5.4 (04/10/2023):\n" +
-            "-Some minor bugs fix;\n" +
-            "-Fix start -toggle command;" +
             "\n--------------------------------\n"
             ;
 
@@ -138,7 +134,7 @@ namespace IngameScript
 
         readonly string commands =
             lcd_divider + "\n" +
-            $"[setup: send CustomData to Drone\n\n" +
+            $"setup: send CustomData to Drone\n\n" +
             $"start x y z -toggle: start the process;\nadd name of blocks as arguments\nto ignore them during printing\nAdd -toggle if you want to toggle\n    whence finished;\n\n" +
             $"stop: stop the process;\n" +
             $"ignore_all: force the weld even\n with missing TB;\n\n" +
@@ -192,7 +188,7 @@ namespace IngameScript
             $"waiting x;\n" +
             $"music -off\n" +
             $"untag_d\n" +
-            $"untag_s]";
+            $"untag_s";
 
         Color lcd_font_colour = new Color(30, 144, 255, 255);
         readonly string[] lcd_spinners = new string[] { "-", "\\", "|", "/" };
@@ -228,6 +224,7 @@ namespace IngameScript
             header = HeaderCreation();
             CustomData();
             SetupBlocks();
+            setupAlreadySent = false;
             if (setupCompleted)
             {
                 SetupActionDict(); // load the dictionary with actions for the commands of the main
@@ -298,7 +295,7 @@ namespace IngameScript
 
         public void IgnoreAll()
         {
-            if(correctVersion && setupAlreadySent && !initializedRequired)
+            if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 IGC.SendBroadcastMessage(BroadcastTag, "ignore_all");
                 Echo($"Sending message: ignore_all");
@@ -307,7 +304,6 @@ namespace IngameScript
             {
                 LCDLog.WriteText($"{header} \nRUN SETUP FIRST");
                 DeactivateAll();
-                return;
             }
             else if (!correctVersion)
             {
@@ -326,7 +322,7 @@ namespace IngameScript
         }
         public void InitDrone()
         {
-            if(correctVersion)
+            if (correctVersion)
             {
                 IGC.SendBroadcastMessage(BroadcastTag, "init_d");
                 LCDLog.WriteText($"{header} \nInit Drone: blocks tagged as drone's CD");
@@ -351,7 +347,7 @@ namespace IngameScript
                 }
                 else
                 {
-                    string changelog = lcd_header + "\n" + lcd_printing_version + lcd_changelog;
+                    string changelog = lcd_header + "\n" + lcd_changelog;
                     LCDStatus.WriteText(CentreText(changelog, 32));
                 }
             }
@@ -863,7 +859,7 @@ namespace IngameScript
             antenna.EnableBroadcasting = true;
             antenna.Radius = 1000;
 
-            
+
             //LCD STATUS SETUP
             try
             {
@@ -1131,20 +1127,26 @@ namespace IngameScript
         }
         public void DeactivateAll()
         {
-            Rotor.Enabled = false;
-            foreach (var lcd in FancyLCDList)
+            try
             {
-                lcd.Enabled = false;
+                Rotor.Enabled = false;
+                foreach (var lcd in FancyLCDList)
+                {
+                    lcd.Enabled = false;
+                }
+                foreach (var welder in WelderList)
+                {
+                    welder.Enabled = false;
+                }
+                foreach (var light in FancyLightList)
+                {
+                    light.Enabled = false;
+                }
+                foreach (var sound in FancySoundList) { sound.Volume = 0f; sound.Enabled = false; }
             }
-            foreach (var welder in WelderList)
+            catch
             {
-                welder.Enabled = false;
             }
-            foreach (var light in FancyLightList)
-            {
-                light.Enabled = false;
-            }
-            foreach (var sound in FancySoundList) { sound.Volume = 0f; sound.Enabled = false; }
         }
         public void ImListening()
         {
@@ -1196,7 +1198,7 @@ namespace IngameScript
                         }
                         catch { }
                     }
-                    if(log=="LogWriting")
+                    if (log == "LogWriting")
                     {
                         LCDLog.WriteText($"{HeaderCreation()} \n{status}");
                         //continues stream of rotorHead infos
@@ -1206,7 +1208,7 @@ namespace IngameScript
                                                 "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix));
                         }
                     }
-                    if(log == "StatusWriting")
+                    if (log == "StatusWriting")
                     {
 
                         string stuckedY = "Looking for the Block";
@@ -1219,32 +1221,32 @@ namespace IngameScript
                         else if (Rotor.TargetVelocityRPM == DynamicSpeedCustom) stuckStatus = fastTrip;
 
                         LCDStatus.WriteText($"{StatusLCDHeaderCreation()} \n{status}\n{lcd_divider}\n         WELDERS STATUS\n{lcd_divider}\n{stuckStatus}");
-                        
+
                         Echo(compact_commands);
                     }
                 }
                 //DEBUG LCD
-                if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string>)
-                {
-                    try
-                    {
-                        var tuple = (MyTuple<string, string>)myIGCMessage_fromDrone.Data;
-                        string deb = tuple.Item1;
-                        var message = tuple.Item2;
-                        if(deb == "Debug") debug.WriteText(message);
-                        //var tuple = (MyTuple<string, string, string, string, string>)myIGCMessage_fromDrone.Data;
-                        //string checkTime = tuple.Item1;
-                        //string name = tuple.Item2;
-                        //string integrity = tuple.Item3;
-                        //string newIntegrity = tuple.Item4;
-                        //string angle = tuple.Item5;
-                        //debug.WriteText($"DEBUG\nStuck Time check: {checkTime}\nBlock Name: {name}\n" +
-                        //    $"Integrity: {integrity}\nNewIntegrity: {newIntegrity}\nAngle: {angle}");
+                //if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string>)
+                //{
+                //    try
+                //    {
+                //        var tuple = (MyTuple<string, string>)myIGCMessage_fromDrone.Data;
+                //        string deb = tuple.Item1;
+                //        var message = tuple.Item2;
+                //        if (deb == "Debug") debug.WriteText(message);
+                //        //var tuple = (MyTuple<string, string, string, string, string>)myIGCMessage_fromDrone.Data;
+                //        //string checkTime = tuple.Item1;
+                //        //string name = tuple.Item2;
+                //        //string integrity = tuple.Item3;
+                //        //string newIntegrity = tuple.Item4;
+                //        //string angle = tuple.Item5;
+                //        //debug.WriteText($"DEBUG\nStuck Time check: {checkTime}\nBlock Name: {name}\n" +
+                //        //    $"Integrity: {integrity}\nNewIntegrity: {newIntegrity}\nAngle: {angle}");
 
-                    }
-                    catch
-                    { }
-                }
+                //    }
+                //    catch
+                //    { }
+                //}
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is string)
                 {
                     string data_log = myIGCMessage_fromDrone.Data.ToString();
@@ -1271,22 +1273,25 @@ namespace IngameScript
                             {
                                 welder.Enabled = true;
                             }
-                            foreach (var lcd in FancyLCDList)
+                            try
                             {
-                                lcd.Enabled = true;
+                                foreach (var lcd in FancyLCDList)
+                                {
+                                    lcd.Enabled = true;
+                                }
+                                foreach (var light in FancyLightList)
+                                {
+                                    light.Enabled = true;
+                                }
+                                Music();
                             }
-                            foreach (var light in FancyLightList)
+                            catch
                             {
-                                light.Enabled = true;
                             }
-                            Music();
                         }
                         else if (!activation)
                         {
                             DeactivateAll();
-                            IGC.DisableBroadcastListener(_myBroadcastListener_station);
-                            _myBroadcastListener_station = IGC.RegisterBroadcastListener(BroadcastTag);
-                            _myBroadcastListener_station.SetMessageCallback(BroadcastTag);
                         }
                     }
                     else if (myString == "weldersToggle")
@@ -1322,7 +1327,7 @@ namespace IngameScript
                             return;
                         }
                     }
-                    else if(myString == "SetupSent")
+                    else if (myString == "SetupSent")
                     {
                         setupAlreadySent = tuple.Item2;
                     }
