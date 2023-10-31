@@ -2,15 +2,15 @@
 -----------
 
 "Robotic Printing Automation" by Reckless
-Current Version: V 4.0.3
+Current Version: V 4.0.4
 Script == DRONE
 Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 
 -------------Changelog 4.0.4 (x/10/2023)----------------------------------
--skip command now is skip -continue, to start printing or 
-	skip to not start printing after movement;
--Only hydro tanks are now considered for tanks;
--Variables are now saved into Drone's CD;
+-skip command now is "skip -print", to start printing after 
+	movement, or "skip" to not start printing after movement;
+-Only hydro tanks are now considered for drone's tanks;
+-Better and more consistent storage of printing variables;
 -------------Changelog 4.0.3 (23/10/2023)----------------------------------
 -Fixed a bug with "weldWhileMoving";
 -------------Changelog 4.0.2 (19/10/2023)----------------------------------
@@ -20,25 +20,6 @@ Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 -------------Changelog 4.0.1 (15/10/2023)----------------------------------
 -Bug fix on init of the drone;
 -Bug fix on setup command;
--------------Changelog 4.0.0 (11/10/2023)----------------------------------
--Fixed some init bugs;
--Deleted "Slow mode";
--Huge rework of some logics of the scripts, to slow them down when runtime exceeds some threshold;
--Added an automatic way to store some variables to calculate ETA, to persist between recompiles;
--------------Changelog 3.6.0 (06/10/2023)----------------------------------
--Check for drone's initialization done (otherwise, you can't start printing);
--Some checks here and there to avoid exceptions;
--Added some extra logs;
--Slow Mode improved
--Added the max Runtime variable (for the server);
--Added the stop command from Drone too;
--------------Changelog 3.5.4 (04/10/2023)----------------------------------
--Some minor bugs fix;
--Fix start -toggle command;
--------------Changelog V 3.5.3 (02/10/2023)----------------------------------
--Recompiling the Drone' script will now check for blocks setup, rather than initializing it;
--To initialize the drone, you have to run "init_d" from the station or the drone's PB;
--If the drone is connected when try to initialize it, an exception is risen;
 
 ------------Needed blocks for Drone---------------------------------------------
 1)1 Cockpit
