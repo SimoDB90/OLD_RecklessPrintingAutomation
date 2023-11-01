@@ -115,10 +115,10 @@ namespace IngameScript
         const float RotorSpeedDefault = 4f;
         float RotorSpeedCustom;
         readonly float RotorTorqueValue = 40000000f;
-        const double maxDistanceStopDefault = 150;
+        const double maxDistanceStopDefault = 180;
         double maxDistanceStopCustom;
         //max movement of the drone
-        const double DroneMovDistanceDefault = 1.7;
+        const double DroneMovDistanceDefault = 2.5;
         double DroneMovDistanceCustom;
         const double maxRTDefault = 0.5; //max runtime that server allows to have per player
         double maxRTCustom;
@@ -1256,17 +1256,8 @@ namespace IngameScript
                         if (deb == "debug")
                         {
                             debug.WriteText(message);
-                            //debug.CustomData += message;
+                            debug.CustomData += message;
                         }
-                        //var tuple = (MyTuple<string, string, string, string, string>)myIGCMessage_fromDrone.Data;
-                        //string checkTime = tuple.Item1;
-                        //string name = tuple.Item2;
-                        //string integrity = tuple.Item3;
-                        //string newIntegrity = tuple.Item4;
-                        //string angle = tuple.Item5;
-                        //debug.WriteText($"DEBUG\nStuck Time check: {checkTime}\nBlock Name: {name}\n" +
-                        //    $"Integrity: {integrity}\nNewIntegrity: {newIntegrity}\nAngle: {angle}");
-
                     }
                     catch
                     { }

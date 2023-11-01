@@ -55,12 +55,11 @@ namespace IngameScript
 
         Vector3D start;
 
-        bool checkDistance;
         float thrust;
         float mass;
         readonly float acceleration = 0.4f; //wanted acceleration in m/s^2
         float maxBreakingThrust;
-
+        float maxDecel;
         string TagCustom;
         int ThrustersInGroup = 0;
 
@@ -69,7 +68,7 @@ namespace IngameScript
         double safetyDistanceStop = 0;
         
         //movement of the drone
-        double DroneMovDistance = 1.5f;
+        double DroneMovDistance = 2.5f;
 
         /// Rotor's setting
         bool firstRotation = true;
@@ -285,8 +284,8 @@ namespace IngameScript
             maxRT = Math.Round(profiler.MaxRuntimeMs, 2);
             //Echo($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
             //    $"Ticks Mult: {multTicks}");
-            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
-                $"Ticks Mult: {multTicks}"));
+            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
+            //    $"Ticks Mult: {multTicks}"));
             if (averageRT <= 0.4 * maxRTCustom)
             {
                 multTicks = multTickList[0];
@@ -375,6 +374,7 @@ namespace IngameScript
                 //}
                 if (Wait >= firstRotationTimeMult * ImWait && firstRotation && !aligningBool && !preciseMoving)
                 {
+                    PrintingBlocksListCreation();
                     time = 0;
                     activePrinting = false;
                     RotorSpeedingUp();
@@ -447,21 +447,6 @@ namespace IngameScript
         }
         public void SetupBlocks()
         {
-            //check if any connector is connected(shouldn't)
-            List<IMyShipConnector> connectors = new List<IMyShipConnector>();
-            GridTerminalSystem.GetBlocksOfType(connectors);
-            if (connectors != null && connectors.Count > 0)
-            {
-                foreach (var connector in connectors)
-                {
-                    if (connector.IsConnected)
-                    {
-                        Echo("Drone is connected via connector.\nPlease, unlock the drone, before Initialization");
-                        IGC.SendBroadcastMessage(BroadcastTag, "Drone is connected via connector.\nPlease, unlock the drone, \nbefore Initialization");
-                        return;
-                    }
-                }
-            }
             Me.CustomData += _ini.DeleteSection("Do No Change lines below");
             //gyros
             GridTerminalSystem.GetBlocksOfType(imGyroList);
@@ -578,9 +563,9 @@ namespace IngameScript
                     return;
                 }
                 Cockpit = CockpitList[0];
+                Cockpit.DampenersOverride = true;
                 _ini.Set("Do No Change lines below", "Cockpit", 1);
             }
-
             // SET PROJECTOR: IF ONLY ONE, ASSIGN THE TAG AUTOMATICALLY
             GridTerminalSystem.GetBlocksOfType(ProjectorList);
             if (ProjectorList != null && ProjectorList.Count == 1)
@@ -687,10 +672,15 @@ namespace IngameScript
             LoadStoredData();
             //SETUP COMPLETED
             setupCompleted = true;
-            initializedRequired = false;
+            lcd_header = $"{lcd_divider}\n{lcd_title}\n{lcd_divider}";
+            start = Me.GetPosition();
+            Echo("Drone Log:\n");
+            initializedRequired = CheckInit();
             profiler = new Profiler(this.Runtime);
             timerSM = new SimpleTimerSM(this, SequenceConditionalRotorSpeed());
             statusLCDStateMachine = new SimpleTimerSM(this, sequence: StatusLCD());
+            _myBroadcastListener = IGC.RegisterBroadcastListener(BroadcastTag);
+            _myBroadcastListener.SetMessageCallback(BroadcastTag);
             //sending the version of the script to the station
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("droneVersion", droneVersion));
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("initRequired", initializedRequired));
@@ -774,6 +764,7 @@ namespace IngameScript
                 return true;
             }
             Cockpit = CockpitList[0];
+            Cockpit.DampenersOverride = true;
             //Projector
             GridTerminalSystem.GetBlocksOfType(ProjectorList, x => x.CustomName.Contains(TagCustom));
             if (ProjectorList == null || ProjectorList.Count != ProjectorCount)
@@ -850,7 +841,8 @@ namespace IngameScript
             while (!firstRotation && printing)
             {
                 IMyTerminalBlock firstBlock;
-                newRotorSpeed = RotorSpeed;
+                PrintingBlocksListCreation();
+                newRotorSpeed = RotorSpeed * 1.5f;
                 yield return 3 * multTicks * ticksToSeconds;
                 time += Runtime.TimeSinceLastRun.TotalSeconds;
                 if (integrityListT0 != null && integrityListT0.Count > 0)
@@ -866,6 +858,7 @@ namespace IngameScript
                 yield return 6 * multTicks * ticksToSeconds;
                 while (activeWeldedBlockIntegrity < 1)
                 {
+                    PrintingBlocksListCreation();
                     time += Runtime.TimeSinceLastRun.TotalSeconds;
                     newRotorSpeed = RotorControl(activeWeldedBlockName);
                     activeWeldedBlockIntegrity = firstBlock.CubeGrid.GetCubeBlock(firstBlock.Min).BuildLevelRatio;
@@ -971,7 +964,7 @@ namespace IngameScript
 
         public void ActionTime(IMyShipController Cockpit, List<IMyThrust> ThrusterGroup)
         {
-            PrintingBlocksListCreation();
+            //PrintingBlocksListCreation();
             if (imMoving)
             {
                 Wait = ImWait;
@@ -1026,6 +1019,8 @@ namespace IngameScript
                     firstRotation = false;
                     //Echo($"precMov: {preciseMoving}");
                     mass = Cockpit.CalculateShipMass().PhysicalMass;
+                    thrust = (mass * acceleration) / ThrustersInGroup;
+                    maxDecel = maxBreakingThrust*1.5f / mass; // 1.5 is the dampeners modifier
                     Runtime.UpdateFrequency = UpdateFrequency.Update1;
                     //Movement(Cockpit, ThrusterGroup, totRemaining, remainingTB);
                 }
@@ -1138,7 +1133,7 @@ namespace IngameScript
                         case "init_d":
                             CustomData();
                             SetupBlocks();
-
+                            
                             break;
                     }
                 }
@@ -1218,7 +1213,9 @@ namespace IngameScript
                         remainingTB = integrityListT0.Count;
                         totRemaining = Projector.RemainingBlocks - refreshBlocks;
                         preciseMoving = true;
-                        //Movement(Cockpit, ThrusterGroup, totRemaining, remainingTB);
+                        mass = Cockpit.CalculateShipMass().PhysicalMass;
+                        thrust = (mass * acceleration) / ThrustersInGroup;
+                        maxDecel = maxBreakingThrust * 1.5f / mass; // 1.5 is the dampeners modifier
                         IGC.SendBroadcastMessage(BroadcastTag, $"Backward movement processed\nPrint after movement: {printAfterSkip}");
                     }
                 }
@@ -1632,13 +1629,15 @@ namespace IngameScript
                  $"{lcd_divider}\n" +
                  $"{"ETA (EXT+Perc)/2",-19}{"= " + ETA + " minutes",13}\n" +
                  $"{"ETA_EXT",-19}{"= " + ETA_Extimate + " minutes",13}\n" +
-                 $"{"ETA_Perc",-19}{"=  " + ETA_Perc_based + " minutes",13}\n"
+                 $"{"ETA_Perc",-19}{"=  " + ETA_Perc_based + " minutes",13}\n" +
+                 $"{lcd_divider}\n" +
+                 $"{"Average RT",-19}{"=  " + averageRT + " ms",13}\n"
                  //$"{"totTime",-19}{"= " + totTime + " secs", 13}\n" +
                  //$"{"blocPerc", -19}{" =" + totBlockPercentage, 13}\n" +
                  //$"{"1/blockPerc = " + 100 / totBlockPercentage}\n" +
                  //$"{"1/blockPerc*totTime = " + 100 / totBlockPercentage *totTime}\n" +
                  //$"{"totTime - su = " + (totTime-( 100 / totBlockPercentage * totTime))}\n"
-                 
+
                  );
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("ActiveWelding", activeOuput.ToString()));
             activeOuput.Clear();
@@ -1676,11 +1675,7 @@ namespace IngameScript
             int remainingTB, Vector3D startingPosition, List<IMyThrust> ForwardThrusters)
         {
             //Echo($"function, precMov: {preciseMoving}");
-            imMoving = true;
-            mass = Cockpit.CalculateShipMass().PhysicalMass;
-            thrust = (mass * acceleration) / ThrustersInGroup;
             Wait = ImWait;
-            float maxDecel = maxBreakingThrust / mass;
             safetyDistanceStop = Math.Round(Vector3D.Distance(rotorPosition, Me.GetPosition()), 2);
             if(!skip) PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
             foreach (var t in ThrusterGroup)
@@ -1689,51 +1684,35 @@ namespace IngameScript
                 //Echo($"thrust: {t.ThrustOverride}");
             }
             //instant speed
-            velocity = Cockpit.GetShipSpeed();
-            Vector3D matrixVelocity = Cockpit.GetShipVelocities().LinearVelocity;
-            Vector3D speed = Vector3D.TransformNormal(matrixVelocity, MatrixD.Transpose(Cockpit.WorldMatrix));
-            //velocity = speed.Dot(Cockpit.WorldMatrix.Backward);
+            //velocity = Cockpit.GetShipSpeed();
+            Vector3D WorldVelocity = Cockpit.GetShipVelocities().LinearVelocity;
+            velocity = WorldVelocity.Dot(Cockpit.WorldMatrix.Backward); //towards backward direction
             //seconds to stop
-            var t_stop = velocity / maxDecel;
-            //
+            var t_stop = velocity / maxDecel + 0.16f;//0.16 to take ticks time into account
+            //stopping distance
             var s_stop = velocity * t_stop - maxDecel * t_stop * t_stop / 2;
-            //string debug = $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())+s_stop}\nvelocity: {velocity}\nt_stop: {t_stop}\nmaxthust: {(int)maxBreakingThrust}";
-            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug",  debug));
-            if ((Vector3D.Distance(startingPosition, Me.GetPosition())+s_stop) >= DroneMovDistance-0.1)
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
+            if ((Vector3D.Distance(startingPosition, Me.GetPosition())+s_stop) >= DroneMovDistance-0.3)
             {
-                //turn off backward, in order to stop
                 foreach (var bt in ThrusterGroup)
                 {
                     bt.ThrustOverridePercentage = 0f;
                     //Echo($"thrust: {bt.ThrustOverride}");
                 }
-                //forward thruster to stop the drone
-                foreach (var t in ForwardThrusters)
-                    t.ThrustOverridePercentage = 1f;
+                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
             }
-            if(Vector3D.Distance(startingPosition, Me.GetPosition())>=DroneMovDistance-0.2)
+            if(Vector3D.Distance(startingPosition, Me.GetPosition())>=DroneMovDistance-0.3)
             {
-                
-                foreach (var t in ForwardThrusters)
+                //velocity = Cockpit.GetShipSpeed();
+                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
+                if (Math.Abs(velocity)<0.1f)
                 {
-                    t.ThrustOverridePercentage = 0f;
-                }
-                Cockpit.DampenersOverride = true;
-                velocity = Cockpit.GetShipSpeed();
-                //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"4=\nprinting: {printing}\nprecMov: {preciseMoving}\nskip: {skip}\nvelocity: {velocity}"));
-                if (velocity<0.1)
-                {
-                    //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"5=\nprinting: {printing}\nprecMov: {preciseMoving}\nskip: {skip}\nvelocity: {velocity}"));
+                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
                     preciseMoving = false;
                     imMoving = false;
                     Wait = ImWait;
                     aligningBool = true;
-                    Runtime.UpdateFrequency = UpdateFrequency.Update1;
                 }
-                //timerSM.AutoStart = true;
-                //timerSM.Start();
-                //statusLCDStateMachine.AutoStart = true;
-                //statusLCDStateMachine.Start();
             }
         }
 
