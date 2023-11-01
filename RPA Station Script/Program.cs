@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Security.Cryptography;
 using System.Text;
 using System.Windows.Input;
@@ -24,7 +25,9 @@ using VRage.Game.GUI.TextPanel;
 using VRage.Game.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRage.Game.ObjectBuilders.Definitions;
+using VRage.Scripting;
 using VRageMath;
+using static Sandbox.Graphics.GUI.MyGuiControlTable;
 
 namespace IngameScript
 {
@@ -37,8 +40,15 @@ namespace IngameScript
             "printing after movement, or \"skip\" to NOT \n" +
             "start printing after movement;\r\n" +
             "-Only hydro tanks are now considered as drone's tanks;\r\n" +
-            "-Better and more consistent storage of printing variables;\n +
+            "-Better and more consistent storage of printing variables;\n" +
             "-Precise Drone movement added;\n" +
+            "Fix a bug with untag commands;\n" +
+            "-Added an allert for low tank level on log LCD;\n" +
+            "-Added an allert for high runtime on log LCD;\n" +
+            "-Fixed some visual minor bugs;\n" +
+            "-Fixed(?) a bug that stops, sometimes, the rotor;\n" +
+            "-Added a QoL command: motion_print, to toggle\nprintwhilemoving variable;\n" +
+            "-Improved runtime of script;\n" +
             "--------------------------------\n" +
             "CHANGELOG VERSION 4.0.3 (23/10/2023):\n" +
             "-Fixed a bug with \"weldWhileMoving\";\n" +
@@ -129,32 +139,33 @@ namespace IngameScript
 
         readonly string commands =
             lcd_divider + "\n" +
-            $"setup: send CustomData to Drone\n\n" +
-            $"start x y z -toggle: start the process;\nadd name of blocks as arguments\nto ignore them during printing\nAdd -toggle if you want to toggle\n    whence finished;\n\n" +
-            $"stop: stop the process;\n" +
-            $"ignore_all: force the weld even\n with missing TB;\n\n" +
-            $"ignore1: skip the active printed block\n\n" +
-            $"init_d: read the CD of the drone\nand add the tag to the blocks" +
+            $"-setup: send CustomData to Drone\n\n" +
+            $"-start x y z -toggle: start the process;\nadd name of blocks as arguments\nto ignore them during printing\nAdd -toggle if you want to toggle\n    whence finished;\n" +
+            $"-stop: stop the process;\n" +
+            $"-ignore_all: force the weld even\n with missing TB;\n" +
+            $"-ignore1: skip the active printed block\n" +
+            $"-init_d: read the CD of the drone\nand add the tag to the blocks\n" +
             lcd_divider + "\n" +
             $"Utility commands:\n" +
             lcd_divider + "\n" +
-            $"guide -off: in depth commands\nAdd -off only to delete\nthe LCD from the guide\n\n" +
-            $"align: force the tug to \nalign to the rotor\n\n" +
-            $"projector: turn on/off the \nDrone's projector\n\n" +
-            $"skip -printing: force drone to move back;\nAdd -printing if you want to\nprint after movement\n\n" +
-            $"toggle x y ...: toggle on \nall blocks (no Epsteins or Tools);\nAdd x y ... to IGNORE THESE BLOCKS\n\n" +
-            $"hudlcd:toggle -reset: toggle on/off\n the hudlcd.\nAdd -reset only to reset it;\n\n" +
-            $"changelog -off: print the changelog on the STATUS LCD;\nAdd -off to delete it;\n\n" +
+            $"-guide -off: in depth commands\nAdd -off only to delete\nthe LCD from the guide\n" +
+            $"-align: force the tug to \nalign to the rotor\n" +
+            $"-projector: turn on/off the \nDrone's projector\n" +
+            $"-skip -printing: force drone to move back;\nAdd -printing if you want to\nprint after movement\n" +
+            $"-toggle x y ...: toggle on \nall blocks (no Epsteins or Tools);\nAdd x y ... to IGNORE THESE BLOCKS\n" +
+            $"-hudlcd:toggle -reset: toggle on/off\n the hudlcd.\nAdd -reset only to reset it;\n" +
+            $"-changelog -off: print the changelog on the STATUS LCD;\nAdd -off to delete it;\n" +
             lcd_divider + "\n" +
             $"Quality of Life Commands:\n" +
             lcd_divider + "\n" +
-            $"rotor_ws x y: changes \nDynamiSpeed(RPM)-RotorSpeed(RPM);\n\n" +
-            $"drone_move x: changes \nDroneMovementDistance(meters);\n\n" +
-            $"max_distance x: changes \nMaxDistanceStop(meters);\n\n" +
-            $"waiting x: changes the Wait;\n\n" +
-            $"music -off: play a random music\nAdd -off if want music to stop\n\n" +
-            $"untag_d x: where x is the tag you\nwant to remove from the drone;\n\n" +
-            $"untag_s x: where x is the tag you\nwant to remove from the station;\n\n";
+            $"-rotor_ws x y: changes \nDynamiSpeed(RPM)-RotorSpeed(RPM);\n" +
+            $"-drone_move x: changes \nDroneMovementDistance(meters);\n" +
+            $"-max_distance x: changes \nMaxDistanceStop(meters);\n" +
+            $"-motion_print: toggle weldWhileMoving variable; \n" +
+            $"-waiting x: changes the Wait;\n" +
+            $"-music -off: play a random music\nAdd -off if want music to stop\n" +
+            $"-untag_d x: where x is the tag you\nwant to remove from the drone;\n" +
+            $"-untag_s x: where x is the tag you\nwant to remove from the station;\n";
 
         readonly string compact_commands =
             lcd_divider + "\n" +
@@ -180,6 +191,7 @@ namespace IngameScript
             $"rotor_ws x y\n" +
             $"drone_move x\n" +
             $"max_distance x\n" +
+            $"motion_print\n" +
             $"waiting x;\n" +
             $"music -off\n" +
             $"untag_d\n" +
@@ -286,8 +298,15 @@ namespace IngameScript
             commandDict["untag_d"] = UntagDrone;
             commandDict["untag_s"] = UntagStation;
             commandDict["init_d"] = InitDrone;
+            commandDict["motion_print"] = MotionPrint;
         }
-
+        public void MotionPrint()
+        {
+            if (weldWhileMovingCustom) weldWhileMovingCustom = false;
+            else weldWhileMovingCustom=true;
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("motion_print", weldWhileMovingCustom));
+            Echo($"Sending message: weldWhileMoving: {weldWhileMovingCustom}\n{commands}");
+        }
         public void IgnoreAll()
         {
             if (correctVersion && setupAlreadySent && !initializedRequired)
@@ -464,6 +483,7 @@ namespace IngameScript
                 IGC.SendBroadcastMessage(BroadcastTag, "start");
                 string output = $"Sending message: start\n{commands}";
                 Echo(output);
+                //debug.CustomData="hudlcd:-.5:.99:0.55";
                 if (toggleAfterFinish)
                 {
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("toggleAfterFinish", true));
@@ -518,7 +538,7 @@ namespace IngameScript
         }
         public void Skip()
         {
-            bool printAfetMove = _commandLine.Switch("print");
+            bool printAfetMove = _commandLine.Switch("printing");
             if (correctVersion && setupAlreadySent && !initializedRequired)
             {
                 if (printAfetMove) { IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("skip", true)); }
@@ -923,7 +943,7 @@ namespace IngameScript
             else if (RotorList.Count > 1)
             {
                 GridTerminalSystem.GetBlocksOfType(RotorList, x => x.CustomName.Contains(TagCustom));
-                if (RotorList == null || RotorList.Count > 1 || !RotorList.Any())
+                if (RotorList == null || RotorList.Count > 1)
                 {
                     Echo($"No Rotor found or more than 1 Rotor found \nUse [{TagDefault}] tag, or change it in Custom Data");
                     TextWriting($"No Rotor found or more than 1 Rotor found \nUse [{TagDefault}] tag, or change it in Custom Data");
@@ -1014,7 +1034,7 @@ namespace IngameScript
                         Echo("No command specified");
                         TextWriting("No command specified");
                     }
-                    else if (commandDict.TryGetValue(commandString, out commandAction))
+                    else if (commandDict.TryGetValue(commandString.ToLower(), out commandAction))
                     {
                         commandAction();
                     }
@@ -1035,6 +1055,14 @@ namespace IngameScript
             if ((updateSource & UpdateType.IGC) > 0)
             {
                 ImListening();
+                //debug.WriteText($"\nactivation: {activation}\n", true);
+                //CONTINUOS STREAM OF INFOS
+                if (activation)
+                {
+                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD>(
+                                        "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix));
+                    //debug.WriteText($"{rotorHead.WorldMatrix}");
+                }
             }
         }
 
@@ -1199,12 +1227,6 @@ namespace IngameScript
                     if (log == "LogWriting")
                     {
                         LCDLog.WriteText($"{HeaderCreation()} \n{status}");
-                        //continues stream of rotorHead infos
-                        if (activation)
-                        {
-                            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD>(
-                                                "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix));
-                        }
                     }
                     if (log == "StatusWriting")
                     {
@@ -1224,27 +1246,31 @@ namespace IngameScript
                     }
                 }
                 //DEBUG LCD
-                //if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string>)
-                //{
-                //    try
-                //    {
-                //        var tuple = (MyTuple<string, string>)myIGCMessage_fromDrone.Data;
-                //        string deb = tuple.Item1;
-                //        var message = tuple.Item2;
-                //        if (deb == "Debug") debug.WriteText(message);
-                //        //var tuple = (MyTuple<string, string, string, string, string>)myIGCMessage_fromDrone.Data;
-                //        //string checkTime = tuple.Item1;
-                //        //string name = tuple.Item2;
-                //        //string integrity = tuple.Item3;
-                //        //string newIntegrity = tuple.Item4;
-                //        //string angle = tuple.Item5;
-                //        //debug.WriteText($"DEBUG\nStuck Time check: {checkTime}\nBlock Name: {name}\n" +
-                //        //    $"Integrity: {integrity}\nNewIntegrity: {newIntegrity}\nAngle: {angle}");
+                if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string>)
+                {
+                    try
+                    {
+                        var tuple = (MyTuple<string, string>)myIGCMessage_fromDrone.Data;
+                        string deb = tuple.Item1;
+                        var message = tuple.Item2;
+                        if (deb == "debug")
+                        {
+                            debug.WriteText(message);
+                            //debug.CustomData += message;
+                        }
+                        //var tuple = (MyTuple<string, string, string, string, string>)myIGCMessage_fromDrone.Data;
+                        //string checkTime = tuple.Item1;
+                        //string name = tuple.Item2;
+                        //string integrity = tuple.Item3;
+                        //string newIntegrity = tuple.Item4;
+                        //string angle = tuple.Item5;
+                        //debug.WriteText($"DEBUG\nStuck Time check: {checkTime}\nBlock Name: {name}\n" +
+                        //    $"Integrity: {integrity}\nNewIntegrity: {newIntegrity}\nAngle: {angle}");
 
-                //    }
-                //    catch
-                //    { }
-                //}
+                    }
+                    catch
+                    { }
+                }
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is string)
                 {
                     string data_log = myIGCMessage_fromDrone.Data.ToString();
@@ -1262,11 +1288,15 @@ namespace IngameScript
                     string myString = tuple.Item1;
                     if (myString == "activation")
                     {
+                        
                         activation = tuple.Item2;
+                        //Echo($"activation: {activation}");
                         if (activation)
                         {
+                            //debug.WriteText($"activation: {activation}");
                             Rotor.RotorLock = false;
                             Rotor.Enabled = true;
+                            //debug.WriteText($"rotor: {Rotor.Enabled}");
                             foreach (var welder in WelderList)
                             {
                                 welder.Enabled = true;
