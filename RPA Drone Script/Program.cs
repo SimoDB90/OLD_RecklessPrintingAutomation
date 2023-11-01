@@ -1691,7 +1691,7 @@ namespace IngameScript
             //stopping distance
             var s_stop = velocity * t_stop - maxDecel * t_stop * t_stop / 2;
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
-            if ((Vector3D.Distance(startingPosition, Me.GetPosition())+s_stop) >= DroneMovDistance-0.3)
+            if ((Vector3D.Distance(startingPosition, Me.GetPosition())+s_stop) >= DroneMovDistance-0.2)
             {
                 foreach (var bt in ThrusterGroup)
                 {
@@ -1700,7 +1700,7 @@ namespace IngameScript
                 }
                 IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
             }
-            if(Vector3D.Distance(startingPosition, Me.GetPosition())>=DroneMovDistance-0.3)
+            if(Vector3D.Distance(startingPosition, Me.GetPosition())>=DroneMovDistance-0.2)
             {
                 //velocity = Cockpit.GetShipSpeed();
                 IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
