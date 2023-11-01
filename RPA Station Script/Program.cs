@@ -41,7 +41,7 @@ namespace IngameScript
             "start printing after movement;\r\n" +
             "-Only hydro tanks are now considered as drone's tanks;\r\n" +
             "-Better and more consistent storage of printing variables;\n" +
-            "-Precise Drone movement added;\n" +
+            "-Precise Drone movement added;\nNow DroneMovementDistance is the wanted one;" +
             "Fix a bug with untag commands;\n" +
             "-Added an allert for low tank level on log LCD;\n" +
             "-Added an allert for high runtime on log LCD;\n" +

@@ -1684,11 +1684,10 @@ namespace IngameScript
                 //Echo($"thrust: {t.ThrustOverride}");
             }
             //instant speed
-            //velocity = Cockpit.GetShipSpeed();
             Vector3D WorldVelocity = Cockpit.GetShipVelocities().LinearVelocity;
             velocity = WorldVelocity.Dot(Cockpit.WorldMatrix.Backward); //towards backward direction
             //seconds to stop
-            var t_stop = velocity / maxDecel + 0.16f;//0.16 to take ticks time into account
+            var t_stop = velocity / maxDecel + 1d/60d;//1d/60d is to take ticks time into account
             //stopping distance
             var s_stop = velocity * t_stop - maxDecel * t_stop * t_stop / 2;
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));

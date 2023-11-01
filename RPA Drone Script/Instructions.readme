@@ -11,13 +11,13 @@ Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 	movement, or "skip" to not start printing after movement;
 -Only hydro tanks are now considered for drone's tanks;
 -Better and more consistent storage of printing variables;
--Precise drone movement added!;
+-Precise drone movement added! Now DroneMovementDistance is the wanted one;
 -Fix a bug with untag commands;
 -Added an allert for low tank level on log LCD;
 -Added allert for high runtime on log LCD;
 -Fixed some visual minor bugs;
 -Fixed(?) a bug that stops, sometimes, the rotor;
--Added a QoL command: motionprint, to toggle printwhilemoving variable;
+-Added a QoL command: motion_print, to toggle printwhilemoving variable;
 -Improved runtime of script;
 -------------Changelog 4.0.3 (23/10/2023)----------------------------------
 -Fixed a bug with "weldWhileMoving";
