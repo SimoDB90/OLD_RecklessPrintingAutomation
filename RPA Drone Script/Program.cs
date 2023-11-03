@@ -287,23 +287,23 @@ namespace IngameScript
             
             averageRT = Math.Round(profiler.RunningAverageMs, 2);
             maxRT = Math.Round(profiler.MaxRuntimeMs, 2);
-            Echo($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
-                $"Ticks Mult: {multTicks}");
+            //Echo($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
+            //    $"Ticks Mult: {multTicks}");
             //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
             //    $"Ticks Mult: {multTicks}"));
-            if (averageRT <= 0.5 * maxRTCustom)
+            if (averageRT <= 0.4 * maxRTCustom)
             {
                 multTicks = multTickList[0];
             }
-            if (averageRT > 0.5 * maxRTCustom && averageRT <= 0.75 * maxRTCustom)
+            if (averageRT > 0.4 * maxRTCustom && averageRT <= 0.65 * maxRTCustom)
             {
                 multTicks = multTickList[1];
             }
-            if (averageRT > 0.75 * maxRTCustom && averageRT <= 0.85 * maxRTCustom)
+            if (averageRT > 0.65 * maxRTCustom && averageRT <= 0.80 * maxRTCustom)
             {
                 multTicks = multTickList[2];
             }
-            if (averageRT > 0.85 * maxRTCustom)
+            if (averageRT > 0.80 * maxRTCustom)
             {
                 multTicks = multTickList[2];
                 return;
@@ -1707,7 +1707,7 @@ namespace IngameScript
             //stopping distance
             var s_stop = velocity * t_stop - maxDecel * t_stop * t_stop / 2;
             //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
-            if ((Vector3D.Distance(startingPosition, Me.GetPosition())+s_stop) >= DroneMovDistance-0.4d)
+            if ((Vector3D.Distance(startingPosition, Me.GetPosition())+s_stop) >= DroneMovDistance-0.5d)
             {
                 foreach (var bt in ThrusterGroup)
                 {
