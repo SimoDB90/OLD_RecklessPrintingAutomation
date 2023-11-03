@@ -1033,6 +1033,7 @@ namespace IngameScript
             profiler.Run();
             
             averageRT = Math.Round(profiler.RunningAverageMs, 2);
+            if (averageRT >= maxRTCustom * 0.85) return;
             //debug.WriteText($"AverageRT(ms): {averageRT}");
             if ((updateSource & (UpdateType.Trigger | UpdateType.Terminal)) > 0) // run by a terminal action
             {
