@@ -16,6 +16,7 @@ using System.Linq;
 using System.Reflection.Emit;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows.Input;
 using VRage;
 using VRage.Collections;
@@ -1033,8 +1034,8 @@ namespace IngameScript
             profiler.Run();
             averageRT = Math.Round(profiler.RunningAverageMs, 2);
             maxRT = Math.Round(profiler.MaxRuntimeMs, 2);
-            debug.WriteText($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
-                $"Ticks Mult: {multTicks}");
+            //debug.WriteText($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
+            //    $"Ticks Mult: {multTicks}");
             if ((updateSource & (UpdateType.Trigger | UpdateType.Terminal)) > 0) // run by a terminal action
             {
                 if (_commandLine.TryParse(argument))
@@ -1068,14 +1069,8 @@ namespace IngameScript
             if ((updateSource & UpdateType.IGC) > 0)
             {
                 ImListening();
-                //debug.WriteText($"\nactivation: {activation}\n", true);
-                //CONTINUOS STREAM OF INFOS
-                if (activation)
-                {
-                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD>(
-                                        "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix));
-                    //debug.WriteText($"{rotorHead.WorldMatrix}");
-                }
+                debug.WriteText($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" + $"Ticks Mult: {multTicks}");
+                
             }
         }
 
@@ -1231,56 +1226,68 @@ namespace IngameScript
                     }
                     if (log == "ActiveWelding")
                     {
+
                         try
                         {
                             LCDActive.WriteText($"{status}" +
                             $"{"Station Avg RT",-19}{"=  " + averageRT + " ms",13}\n");
                         }
                         catch { }
+
                     }
                     if (log == "LogWriting")
                     {
-                        string RTString="";
+
+                        string RTString = "";
                         if (averageRT >= 0.85 * maxRTCustom)
                         {
                             RTString = $"{lcd_divider}\n  CRITICAL RT: RPA SLOWING DOWN";
                         }
-                        else if (averageRT < 0.85 * maxRTCustom) RTString="";
-                        LCDLog.WriteText($"{HeaderCreation()} \n{status}" +$"{ RTString}");
+                        else if (averageRT < 0.85 * maxRTCustom) RTString = "";
+                        LCDLog.WriteText($"{HeaderCreation()} \n{status}" + $"{RTString}");
+                        //CONTINUOS STREAM OF INFOS
+                        //debug.WriteText("log");
+                        if (Rotor.TargetVelocityRPM != DynamicSpeedCustom)
+                        {
+                            //debug.WriteText("here");
+                            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD>(
+                                            "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix));
+                            //debug.WriteText($"{rotorHead.WorldMatrix}");
+                        }
+
                     }
                     if (log == "StatusWriting")
                     {
-
-                        string stuckedY = "Looking for the Block";
-                        string stuckedN = "Unstuck";
-                        string fastTrip = "Fast rotation";
-                        if (Rotor.TargetVelocityRPM != RotorSpeedCustom && Rotor.TargetVelocityRPM != 0 &&
-                            Rotor.TargetVelocityRPM != DynamicSpeedCustom) stuckStatus = stuckedY;
-                        else if (Rotor.TargetVelocityRPM == RotorSpeedCustom) stuckStatus = stuckedN;
-                        else if (Rotor.TargetVelocityRPM == 0) stuckStatus = "Welding";
-                        else if (Rotor.TargetVelocityRPM == DynamicSpeedCustom) stuckStatus = fastTrip;
-
-                        LCDStatus.WriteText($"{StatusLCDHeaderCreation()} \n{status}\n{lcd_divider}\n         WELDERS STATUS\n{lcd_divider}\n{stuckStatus}");
-
-                        Echo(compact_commands);
-                    }
-                }
-                //DEBUG LCD
-                if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string>)
-                {
-                    try
-                    {
-                        var tuple = (MyTuple<string, string>)myIGCMessage_fromDrone.Data;
-                        string deb = tuple.Item1;
-                        var message = tuple.Item2;
-                        if (deb == "debug")
+                        try
                         {
-                            debug.WriteText(message);
-                            debug.CustomData += message;
+                            string stuckedY = "Looking for the Block";
+                            string stuckedN = "Unstuck";
+                            string fastTrip = "Fast rotation";
+                            if (Rotor.TargetVelocityRPM != RotorSpeedCustom && Rotor.TargetVelocityRPM != 0 &&
+                                Rotor.TargetVelocityRPM != DynamicSpeedCustom) stuckStatus = stuckedY;
+                            else if (Rotor.TargetVelocityRPM == RotorSpeedCustom) stuckStatus = stuckedN;
+                            else if (Rotor.TargetVelocityRPM == 0) stuckStatus = "Welding";
+                            else if (Rotor.TargetVelocityRPM == DynamicSpeedCustom) stuckStatus = fastTrip;
+
+                            LCDStatus.WriteText($"{StatusLCDHeaderCreation()} \n{status}\n{lcd_divider}\n         WELDERS STATUS\n{lcd_divider}\n{stuckStatus}");
+
+                            Echo(compact_commands);
+                        }
+                        catch
+                        {
                         }
                     }
-                    catch
-                    { }
+                    ///LOG LCD
+                    if (log == "debug")
+                    {
+                        try
+                        {
+                            debug.WriteText(status);
+                            //debug.CustomData += status;
+                        }
+                        catch
+                        { }
+                    }
                 }
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is string)
                 {
@@ -1295,6 +1302,7 @@ namespace IngameScript
 
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, bool>)
                 {
+                    
                     var tuple = (MyTuple<string, bool>)myIGCMessage_fromDrone.Data;
                     string myString = tuple.Item1;
                     if (myString == "activation")
