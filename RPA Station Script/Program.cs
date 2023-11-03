@@ -1266,7 +1266,6 @@ namespace IngameScript
                             if (Rotor.TargetVelocityRPM == RotorSpeedCustom) stuckStatus = stuckedN;
                             if (Rotor.TargetVelocityRPM == 0) stuckStatus = "Welding";
                             if (Rotor.TargetVelocityRPM >= DynamicSpeedCustom-3) stuckStatus = fastTrip;
-                            if (status ==null || status == "") status = " ";
 
                             LCDStatus.WriteText($"{StatusLCDHeaderCreation()} \n{status}\n{lcd_divider}\n         WELDERS STATUS\n{lcd_divider}\n{stuckStatus}");
 

@@ -167,7 +167,7 @@ namespace IngameScript
         SimpleTimerSM timerSM;
         SimpleTimerSM statusLCDStateMachine;
         const double ticksToSeconds = 1d / 60d; //multiplying it by X seconds, returns the number of ticks
-        readonly int[] multTickList = new int[] { 1, 2, 6 };
+        readonly int[] multTickList = new int[] { 1, 2, 3 };
         int multTicks = 1;
         public Program()
         {
@@ -194,7 +194,14 @@ namespace IngameScript
 
             else
             {
-                return;
+                totRemaining = 0;
+                totTime = 0;
+                averageTime = 0;
+                builtBlocks = 0;
+                averageBlocks = 0;
+                refreshBlocks = 0;
+                sectionsBuilt = 0;
+                ignoredBlocks = 0;
             }
         }
         public void SaveVariables()
@@ -247,6 +254,7 @@ namespace IngameScript
                         sectionsBuilt = 0;
                         ignoredBlocks = 0;
                         Echo($"No Stored Data to load for this BP;");
+                        Echo($"Storage: {Storage}");
                         //IGC.SendBroadcastMessage(BroadcastTag, "No Stored Data to load for this BP;");
                     }
                 }
@@ -268,28 +276,27 @@ namespace IngameScript
                 refreshBlocks = 0;
                 sectionsBuilt = 0;
                 ignoredBlocks = 0;
-                Echo($"No Stored Data to load for this BP;");
+                Echo($"Can't parse the Storage;");
                 //IGC.SendBroadcastMessage(BroadcastTag, "No Stored Data to load for this BP;");
             }
         }
 
         public void Main(string argument, UpdateType updateSource)
         {
-            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"act: {activation}"));
+            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"tunrime: {Runtime.TimeSinceLastRun}"));
             profiler.Run();
-            timerSM.Run();
-            statusLCDStateMachine.Run();
+            
             averageRT = Math.Round(profiler.RunningAverageMs, 2);
             maxRT = Math.Round(profiler.MaxRuntimeMs, 2);
-            //Echo($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
-            //    $"Ticks Mult: {multTicks}");
+            Echo($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
+                $"Ticks Mult: {multTicks}");
             //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
             //    $"Ticks Mult: {multTicks}"));
-            if (averageRT <= 0.4 * maxRTCustom)
+            if (averageRT <= 0.5 * maxRTCustom)
             {
                 multTicks = multTickList[0];
             }
-            if (averageRT > 0.4 * maxRTCustom && averageRT < 0.75 * maxRTCustom)
+            if (averageRT > 0.5 * maxRTCustom && averageRT <= 0.75 * maxRTCustom)
             {
                 multTicks = multTickList[1];
             }
@@ -300,25 +307,27 @@ namespace IngameScript
             if (averageRT > 0.85 * maxRTCustom)
             {
                 multTicks = multTickList[2];
-                return;
             }
-            if (argument.ToLower() == "init_d" && !printing)
+            if ((updateSource & (UpdateType.Trigger | UpdateType.Terminal)) > 0)
             {
-                printing = false;
-                CustomData();
-                SetupBlocks();
-                if (setupCompleted)
+                if (argument.ToLower() == "init_d" && !printing)
                 {
-                    Echo($"DRONE SETUP COMPLETED!\nVersion: {droneVersion}\nNumbers of thrusters in group: {ThrustersInGroup}\nCockpit Found \nProjector Found \nFuel Tank: {tank.Count}\nTag used: {TagCustom}");
-                    IGC.SendBroadcastMessage(BroadcastTag, $"    |DRONE SETUP COMPLETED!\n|Version: {droneVersion}\n|Numbers of active thrusters: {ThrustersInGroup} " +
-                        $"\n|Cockpit Found \n|Projector Found\n|Fuel Tank: {tank.Count}\n|Tag used: [{TagCustom}]");
+                    CustomData();
+                    SetupBlocks();
+                    if (setupCompleted)
+                    {
+                        Echo($"DRONE SETUP COMPLETED!\nVersion: {droneVersion}\nNumbers of thrusters in group: {ThrustersInGroup}\nCockpit Found \nProjector Found \nFuel Tank: {tank.Count}\nTag used: {TagCustom}");
+                        IGC.SendBroadcastMessage(BroadcastTag, $"    |DRONE SETUP COMPLETED!\n|Version: {droneVersion}\n|Numbers of active thrusters: {ThrustersInGroup} " +
+                            $"\n|Cockpit Found \n|Projector Found\n|Fuel Tank: {tank.Count}\n|Tag used: [{TagCustom}]");
+                    }
                 }
-            }
-            if (argument.ToLower() == "stop")
-            {
-                printing = false; //stop the print-->for the main
-                Stop();
-                SaveVariables();
+                if (argument.ToLower() == "stop")
+                {
+                    Echo($"Stopping");
+                    printing = false; //stop the print-->for the main
+                    Stop();
+                    SaveVariables();
+                } 
             }
 
             if (skip)
@@ -355,7 +364,9 @@ namespace IngameScript
             }
             if (printing)
             {
-                if(preciseMoving)
+                timerSM.Run();
+                statusLCDStateMachine.Run();
+                if (preciseMoving)
                 {
                     //timerSM.Stop();
                     //statusLCDStateMachine.Stop();
@@ -386,7 +397,7 @@ namespace IngameScript
                     IGC.SendBroadcastMessage(BroadcastTag, newRotorSpeed);
                 }
             }
-            else if(!printing && !skip)
+            if(!printing && !skip)
             {
                 timerSM.AutoStart = false;
                 statusLCDStateMachine.AutoStart = false;
@@ -440,7 +451,6 @@ namespace IngameScript
             }
             // Set the values to make sure they exist. They could be missing even when parsed ok.
             _ini.Set("data", "TAG", TagCustom);
-
             Me.CustomData = _ini.ToString();
             ///////////////////////////
         }
@@ -1022,7 +1032,7 @@ namespace IngameScript
                     start = Me.GetPosition();
                     preciseMoving = true;
                     imMoving = true;
-                    firstRotation = false;
+                    firstRotation = true;
                     //Echo($"precMov: {preciseMoving}");
                     mass = Cockpit.CalculateShipMass().PhysicalMass;
                     thrust = (mass * acceleration) / ThrustersInGroup;
@@ -1307,14 +1317,13 @@ namespace IngameScript
                 //setup commands
                 if (myIGCMessage.Data is MyTuple<double, float, double, float, MyTuple<double, bool, double>, MyTuple<MatrixD, int>>)
                 {
-                    Echo("Qaòsdadasad");
                     Starter();
                     printing = false;
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("droneVersion", droneVersion));
-                    Echo($"init: {initializedRequired}");
+                    //Echo($"init: {initializedRequired}");
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("initRequired", initializedRequired));
                     setupAlreadySent = true;
-                    Echo($"setup: {setupAlreadySent}");
+                    //Echo($"setup: {setupAlreadySent}");
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("SetupSent", setupAlreadySent));
                     Runtime.UpdateFrequency = UpdateFrequency.None;
                     activation = false;
@@ -1669,6 +1678,7 @@ namespace IngameScript
                 IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StatusWriting", printingStatus.ToString()));
                 printingStatus.Clear();
             }
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StatusWriting", ""));
             yield break;
         }
         public void Projecting(IMyProjector Projector)
@@ -1810,7 +1820,6 @@ namespace IngameScript
                     {
                         Runtime.UpdateFrequency = UpdateFrequency.None;
                         Wait = ImWait;
-                        //checkDistance = false;
                         firstRotation = false;
                         weldersToggleOn = false;
                         WeldersToggle(weldersToggleOn);
