@@ -167,7 +167,7 @@ namespace IngameScript
         SimpleTimerSM timerSM;
         SimpleTimerSM statusLCDStateMachine;
         const double ticksToSeconds = 1d / 60d; //multiplying it by X seconds, returns the number of ticks
-        readonly int[] multTickList = new int[] { 1, 10, 100 };
+        readonly int[] multTickList = new int[] { 1, 2, 6 };
         int multTicks = 1;
         public Program()
         {
@@ -234,7 +234,7 @@ namespace IngameScript
 
                     if (totalBlocks == totBlocks && totalRemaining == totRemaining)
                     {
-                        IGC.SendBroadcastMessage(BroadcastTag, "Stored Data loaded for this BP;");
+                        //IGC.SendBroadcastMessage(BroadcastTag, "Stored Data loaded for this BP;");
                         Echo($"Load Stored Data:\nNumber of sections= {sectionsBuilt}\nTotal printing Time= {totTime}\n" +
                             $"Average Time= {averageTime}\nAverage blocks/section= {averageBlocks}\nSkipped Blocks= {ignoredBlocks}");
                     }
@@ -249,13 +249,13 @@ namespace IngameScript
                         sectionsBuilt = 0;
                         ignoredBlocks = 0;
                         Echo($"No Stored Data to load for this BP;");
-                        IGC.SendBroadcastMessage(BroadcastTag, "No Stored Data to load for this BP;");
+                        //IGC.SendBroadcastMessage(BroadcastTag, "No Stored Data to load for this BP;");
                     }
                 }
                 else
                 {
                     Echo($"Projector is off: turn it on to load Data;");
-                    IGC.SendBroadcastMessage(BroadcastTag, "Projector is off: turn it on to load Data;");
+                    //IGC.SendBroadcastMessage(BroadcastTag, "Projector is off: turn it on to load Data;");
                     return;
                 }
             }
@@ -271,7 +271,7 @@ namespace IngameScript
                 sectionsBuilt = 0;
                 ignoredBlocks = 0;
                 Echo($"No Stored Data to load for this BP;");
-                IGC.SendBroadcastMessage(BroadcastTag, "No Stored Data to load for this BP;");
+                //IGC.SendBroadcastMessage(BroadcastTag, "No Stored Data to load for this BP;");
             }
         }
 
@@ -1010,6 +1010,7 @@ namespace IngameScript
 
                 if (remainingTB <= 0 && preciseMoving==false)
                 {
+                    PrintingBlocksListCreation();
                     sectionsBuilt++;
                     endingBlocks = totBlocks - totRemaining;
                     averageBlocks = endingBlocks / sectionsBuilt;
@@ -1022,6 +1023,7 @@ namespace IngameScript
                     thrust = (mass * acceleration) / ThrustersInGroup;
                     maxDecel = maxBreakingThrust*1.5f / mass; // 1.5 is the dampeners modifier
                     Runtime.UpdateFrequency = UpdateFrequency.Update1;
+                    PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
                     //Movement(Cockpit, ThrusterGroup, totRemaining, remainingTB);
                 }
 
@@ -1631,7 +1633,7 @@ namespace IngameScript
                  $"{"ETA_EXT",-19}{"= " + ETA_Extimate + " minutes",13}\n" +
                  $"{"ETA_Perc",-19}{"=  " + ETA_Perc_based + " minutes",13}\n" +
                  $"{lcd_divider}\n" +
-                 $"{"Average RT",-19}{"=  " + averageRT + " ms",13}\n"
+                 $"{"Drone Avg RT",-19}{"=  " + averageRT + " ms",13}\n"
                  //$"{"totTime",-19}{"= " + totTime + " secs", 13}\n" +
                  //$"{"blocPerc", -19}{" =" + totBlockPercentage, 13}\n" +
                  //$"{"1/blockPerc = " + 100 / totBlockPercentage}\n" +
@@ -1690,7 +1692,7 @@ namespace IngameScript
             var t_stop = velocity / maxDecel + 1d/60d;//1d/60d is to take ticks time into account
             //stopping distance
             var s_stop = velocity * t_stop - maxDecel * t_stop * t_stop / 2;
-            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
+            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
             if ((Vector3D.Distance(startingPosition, Me.GetPosition())+s_stop) >= DroneMovDistance-0.2)
             {
                 foreach (var bt in ThrusterGroup)
@@ -1698,15 +1700,15 @@ namespace IngameScript
                     bt.ThrustOverridePercentage = 0f;
                     //Echo($"thrust: {bt.ThrustOverride}");
                 }
-                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
+                //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
             }
             if(Vector3D.Distance(startingPosition, Me.GetPosition())>=DroneMovDistance-0.2)
             {
                 //velocity = Cockpit.GetShipSpeed();
-                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
+                //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
                 if (Math.Abs(velocity)<0.1f)
                 {
-                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
+                    //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
                     preciseMoving = false;
                     imMoving = false;
                     Wait = ImWait;

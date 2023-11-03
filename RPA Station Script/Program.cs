@@ -219,8 +219,16 @@ namespace IngameScript
         //immutable list builder for toggle arguments
         readonly ImmutableList<string>.Builder toggleBuilder = ImmutableList.CreateBuilder<string>();
         readonly ImmutableList<string>.Builder startBuilder = ImmutableList.CreateBuilder<string>();
+
+        //runtime
+        readonly Profiler profiler;
+        double averageRT = 0;
+        double maxRT = 0;
+        readonly int[] multTickList = new int[] { 1, 2, 6 };
+        int multTicks = 1;
         public Program()
         {
+            profiler = new Profiler(this.Runtime);
             lcd_printing_version = $"{lcd_version + stationVersion}";
             lcd_header = $"{lcd_divider}\n{lcd_title}\n{lcd_divider}";
             /////////////////////////
@@ -1022,6 +1030,11 @@ namespace IngameScript
         //in the main we've got the tryparse(argument) into a string and invoke the Action as value of dictionary
         public void Main(string argument, UpdateType updateSource)
         {
+            profiler.Run();
+            averageRT = Math.Round(profiler.RunningAverageMs, 2);
+            maxRT = Math.Round(profiler.MaxRuntimeMs, 2);
+            debug.WriteText($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
+                $"Ticks Mult: {multTicks}");
             if ((updateSource & (UpdateType.Trigger | UpdateType.Terminal)) > 0) // run by a terminal action
             {
                 if (_commandLine.TryParse(argument))
@@ -1220,13 +1233,20 @@ namespace IngameScript
                     {
                         try
                         {
-                            LCDActive.WriteText($"{status}");
+                            LCDActive.WriteText($"{status}" +
+                            $"{"Station Avg RT",-19}{"=  " + averageRT + " ms",13}\n");
                         }
                         catch { }
                     }
                     if (log == "LogWriting")
                     {
-                        LCDLog.WriteText($"{HeaderCreation()} \n{status}");
+                        string RTString="";
+                        if (averageRT >= 0.85 * maxRTCustom)
+                        {
+                            RTString = $"{lcd_divider}\n  CRITICAL RT: RPA SLOWING DOWN";
+                        }
+                        else if (averageRT < 0.85 * maxRTCustom) RTString="";
+                        LCDLog.WriteText($"{HeaderCreation()} \n{status}" +$"{ RTString}");
                     }
                     if (log == "StatusWriting")
                     {
@@ -1353,7 +1373,97 @@ namespace IngameScript
                 }
             }
         }
+        internal sealed class Profiler
+        {
+            public double RunningAverageMs { get; private set; }
+            private double AverageRuntimeMs
+            {
+                get
+                {
+                    double sum = runtimeCollection[0];
+                    for (int i = 1; i < BufferSize; i++)
+                    {
+                        sum += runtimeCollection[i];
+                    }
+                    return (sum / BufferSize);
+                }
+            }
+            /// <summary>Use <see cref="MaxRuntimeMsFast">MaxRuntimeMsFast</see> if performance is a major concern</summary>
+            public double MaxRuntimeMs
+            {
+                get
+                {
+                    double max = runtimeCollection[0];
+                    for (int i = 1; i < BufferSize; i++)
+                    {
+                        if (runtimeCollection[i] > max)
+                        {
+                            max = runtimeCollection[i];
+                        }
+                    }
+                    return max;
+                }
+            }
+            public double MaxRuntimeMsFast { get; private set; }
+            public double MinRuntimeMs
+            {
+                get
+                {
+                    double min = runtimeCollection[0];
+                    for (int i = 1; i < BufferSize; i++)
+                    {
+                        if (runtimeCollection[i] < min)
+                        {
+                            min = runtimeCollection[i];
+                        }
+                    }
+                    return min;
+                }
+            }
+            public int BufferSize { get; }
 
+            private readonly double bufferSizeInv;
+            private readonly IMyGridProgramRuntimeInfo runtimeInfo;
+            private readonly double[] runtimeCollection;
+            private int counter = 0;
+
+            /// <summary></summary>
+            /// <param name="runtimeInfo">Program.Runtime instance of this script.</param>
+            /// <param name="bufferSize">Buffer size. Must be 1 or higher.</param>
+            public Profiler(IMyGridProgramRuntimeInfo runtimeInfo, int bufferSize = 300)
+            {
+                this.runtimeInfo = runtimeInfo;
+                this.MaxRuntimeMsFast = runtimeInfo.LastRunTimeMs;
+                this.BufferSize = MathHelper.Clamp(bufferSize, 1, int.MaxValue);
+                this.bufferSizeInv = 1.0 / BufferSize;
+                this.runtimeCollection = new double[bufferSize];
+                this.runtimeCollection[counter] = runtimeInfo.LastRunTimeMs;
+                this.counter++;
+            }
+
+            public void Run()
+            {
+                RunningAverageMs -= runtimeCollection[counter] * bufferSizeInv;
+                RunningAverageMs += runtimeInfo.LastRunTimeMs * bufferSizeInv;
+
+                runtimeCollection[counter] = runtimeInfo.LastRunTimeMs;
+
+                if (runtimeInfo.LastRunTimeMs > MaxRuntimeMsFast)
+                {
+                    MaxRuntimeMsFast = runtimeInfo.LastRunTimeMs;
+                }
+
+                counter++;
+
+                if (counter >= BufferSize)
+                {
+                    counter = 0;
+                    //Correct floating point drift
+                    RunningAverageMs = AverageRuntimeMs;
+                    MaxRuntimeMsFast = runtimeInfo.LastRunTimeMs;
+                }
+            }
+        }
 
 
 
