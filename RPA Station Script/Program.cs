@@ -17,6 +17,7 @@ using System.Reflection.Emit;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Timers;
 using System.Windows.Input;
 using VRage;
 using VRage.Collections;
@@ -28,7 +29,6 @@ using VRage.Game.ModAPI.Ingame.Utilities;
 using VRage.Game.ObjectBuilders.Definitions;
 using VRage.Scripting;
 using VRageMath;
-using static Sandbox.Graphics.GUI.MyGuiControlTable;
 
 namespace IngameScript
 {
@@ -224,12 +224,10 @@ namespace IngameScript
         //runtime
         readonly Profiler profiler;
         double averageRT = 0;
-        double maxRT = 0;
-        readonly int[] multTickList = new int[] { 1, 2, 6 };
-        int multTicks = 1;
         public Program()
         {
             profiler = new Profiler(this.Runtime);
+
             lcd_printing_version = $"{lcd_version + stationVersion}";
             lcd_header = $"{lcd_divider}\n{lcd_title}\n{lcd_divider}";
             /////////////////////////
@@ -1032,10 +1030,9 @@ namespace IngameScript
         public void Main(string argument, UpdateType updateSource)
         {
             profiler.Run();
+            
             averageRT = Math.Round(profiler.RunningAverageMs, 2);
-            maxRT = Math.Round(profiler.MaxRuntimeMs, 2);
-            //debug.WriteText($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
-            //    $"Ticks Mult: {multTicks}");
+            //debug.WriteText($"AverageRT(ms): {averageRT}");
             if ((updateSource & (UpdateType.Trigger | UpdateType.Terminal)) > 0) // run by a terminal action
             {
                 if (_commandLine.TryParse(argument))
@@ -1069,8 +1066,16 @@ namespace IngameScript
             if ((updateSource & UpdateType.IGC) > 0)
             {
                 ImListening();
-                debug.WriteText($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" + $"Ticks Mult: {multTicks}");
-                
+                //debug.WriteText($"AverageRT(ms): {averageRT}");
+                //CONTINUOS STREAM OF INFOS
+                //debug.WriteText("log");
+                if (Rotor.TargetVelocityRPM != DynamicSpeedCustom)
+                {
+                    //debug.WriteText("here");
+                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD>(
+                                    "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix));
+                    //debug.WriteText($"{rotorHead.WorldMatrix}");
+                }
             }
         }
 
@@ -1187,6 +1192,7 @@ namespace IngameScript
             while (_myBroadcastListener_station.HasPendingMessage)
             {
                 var myIGCMessage_fromDrone = _myBroadcastListener_station.AcceptMessage();
+                
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string>)
                 {
                     var tuple = (MyTuple<string, string>)myIGCMessage_fromDrone.Data;
@@ -1245,29 +1251,22 @@ namespace IngameScript
                         }
                         else if (averageRT < 0.85 * maxRTCustom) RTString = "";
                         LCDLog.WriteText($"{HeaderCreation()} \n{status}" + $"{RTString}");
-                        //CONTINUOS STREAM OF INFOS
-                        //debug.WriteText("log");
-                        if (Rotor.TargetVelocityRPM != DynamicSpeedCustom)
-                        {
-                            //debug.WriteText("here");
-                            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD>(
-                                            "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix));
-                            //debug.WriteText($"{rotorHead.WorldMatrix}");
-                        }
+                        
 
                     }
                     if (log == "StatusWriting")
                     {
                         try
                         {
-                            string stuckedY = "Looking for the Block";
+                            string LFBlock = "Looking for the Block";
                             string stuckedN = "Unstuck";
                             string fastTrip = "Fast rotation";
                             if (Rotor.TargetVelocityRPM != RotorSpeedCustom && Rotor.TargetVelocityRPM != 0 &&
-                                Rotor.TargetVelocityRPM != DynamicSpeedCustom) stuckStatus = stuckedY;
-                            else if (Rotor.TargetVelocityRPM == RotorSpeedCustom) stuckStatus = stuckedN;
-                            else if (Rotor.TargetVelocityRPM == 0) stuckStatus = "Welding";
-                            else if (Rotor.TargetVelocityRPM == DynamicSpeedCustom) stuckStatus = fastTrip;
+                                Rotor.TargetVelocityRPM != DynamicSpeedCustom) stuckStatus = LFBlock;
+                            if (Rotor.TargetVelocityRPM == RotorSpeedCustom) stuckStatus = stuckedN;
+                            if (Rotor.TargetVelocityRPM == 0) stuckStatus = "Welding";
+                            if (Rotor.TargetVelocityRPM >= DynamicSpeedCustom-3) stuckStatus = fastTrip;
+                            if (status ==null || status == "") status = " ";
 
                             LCDStatus.WriteText($"{StatusLCDHeaderCreation()} \n{status}\n{lcd_divider}\n         WELDERS STATUS\n{lcd_divider}\n{stuckStatus}");
 
@@ -1289,17 +1288,18 @@ namespace IngameScript
                         { }
                     }
                 }
+                
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is string)
                 {
                     string data_log = myIGCMessage_fromDrone.Data.ToString();
                     LCDLog.WriteText($"{header} \n{data_log}");
                 }
-
+                
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is float)
                 {
                     Rotor.TargetVelocityRPM = (float)(myIGCMessage_fromDrone.Data);
                 }
-
+                
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, bool>)
                 {
                     
@@ -1307,7 +1307,7 @@ namespace IngameScript
                     string myString = tuple.Item1;
                     if (myString == "activation")
                     {
-                        
+                        //debug.WriteText($"here");
                         activation = tuple.Item2;
                         //Echo($"activation: {activation}");
                         if (activation)
@@ -1472,7 +1472,7 @@ namespace IngameScript
                 }
             }
         }
-
+        
 
 
     }
