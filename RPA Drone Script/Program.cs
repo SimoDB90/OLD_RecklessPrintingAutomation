@@ -161,7 +161,7 @@ namespace IngameScript
         Profiler profiler;
         double averageRT = 0;
         double maxRT = 0;
-        double maxRTCustom = 0;
+        double maxRTCustom = 0.5;
 
         //init Timer State machine
         SimpleTimerSM timerSM;
@@ -254,7 +254,6 @@ namespace IngameScript
                         sectionsBuilt = 0;
                         ignoredBlocks = 0;
                         Echo($"No Stored Data to load for this BP;");
-                        Echo($"Storage: {Storage}");
                         //IGC.SendBroadcastMessage(BroadcastTag, "No Stored Data to load for this BP;");
                     }
                 }
@@ -307,6 +306,7 @@ namespace IngameScript
             if (averageRT > 0.85 * maxRTCustom)
             {
                 multTicks = multTickList[2];
+                return;
             }
             if ((updateSource & (UpdateType.Trigger | UpdateType.Terminal)) > 0)
             {

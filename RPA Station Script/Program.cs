@@ -47,6 +47,7 @@ namespace IngameScript
             "-Added an allert for low tank level on log LCD;\n" +
             "-Added an allert for high runtime on log LCD;\n" +
             "-Fixed some visual minor bugs;\n" +
+            "-Fixed a bug that prevented to send setup;\n" +
             "-Fixed(?) a bug that stops, sometimes, the rotor;\n" +
             "-Added a QoL command: motion_print, to toggle\nprintwhilemoving variable;\n" +
             "-Improved runtime of script;\n" +
