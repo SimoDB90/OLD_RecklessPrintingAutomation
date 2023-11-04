@@ -227,7 +227,7 @@ namespace IngameScript
         double averageRT = 0;
         public Program()
         {
-            profiler = new Profiler(this.Runtime);
+            profiler = new Profiler(this.Runtime, 240);
 
             lcd_printing_version = $"{lcd_version + stationVersion}";
             lcd_header = $"{lcd_divider}\n{lcd_title}\n{lcd_divider}";
@@ -1067,7 +1067,12 @@ namespace IngameScript
             if ((updateSource & UpdateType.IGC) > 0)
             {
                 averageRT = Math.Round(profiler.RunningAverageMs, 2);
-                if (averageRT >= maxRTCustom * 0.3) return;
+                if (averageRT >= maxRTCustom * 0.3)
+                {
+                    //debug.CustomData += "Y\t";
+                    return;
+                }
+                
                 ImListening();
                 //debug.WriteText($"AverageRT(ms): {averageRT}");
             }

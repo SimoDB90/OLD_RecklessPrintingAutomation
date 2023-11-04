@@ -173,7 +173,7 @@ namespace IngameScript
         {
             _myBroadcastListener = IGC.RegisterBroadcastListener(BroadcastTag);
             _myBroadcastListener.SetMessageCallback(BroadcastTag);
-            profiler = new Profiler(this.Runtime);
+            profiler = new Profiler(this.Runtime, 240);
             timerSM = new SimpleTimerSM(this, SequenceConditionalRotorSpeed());
             statusLCDStateMachine = new SimpleTimerSM(this, sequence: StatusLCD());
             Starter();
@@ -290,8 +290,7 @@ namespace IngameScript
             maxRT = Math.Round(profiler.MaxRuntimeMs, 2);
             Echo($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
                 $"Ticks Mult: {multTicks}");
-            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
-            //    $"Ticks Mult: {multTicks}"));
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n"));
             if (averageRT <= 0.2 * maxRTCustom)
             {
                 multTicks = multTickList[0];
@@ -300,11 +299,11 @@ namespace IngameScript
             {
                 multTicks = multTickList[1];
             }
-            if (averageRT > 0.4 * maxRTCustom && averageRT <= 0.65 * maxRTCustom)
+            if (averageRT > 0.4 * maxRTCustom && averageRT <= 0.55 * maxRTCustom)
             {
                 multTicks = multTickList[2];
             }
-            if (averageRT > 0.65 * maxRTCustom)
+            if (averageRT > 0.55 * maxRTCustom)
             {
                 multTicks = multTickList[2];
                 return;
@@ -384,7 +383,7 @@ namespace IngameScript
                 //}
                 if (Wait >= firstRotationTimeMult * ImWait && firstRotation && !aligningBool)
                 {
-                    PrintingBlocksListCreation();
+                    //PrintingBlocksListCreation();
                     time = 0;
                     activePrinting = false;
                     RotorSpeedingUp();
@@ -685,7 +684,7 @@ namespace IngameScript
             start = Me.GetPosition();
             Echo("Drone Log:\n");
             initializedRequired = CheckInit();
-            profiler = new Profiler(this.Runtime);
+            profiler = new Profiler(this.Runtime, 240);
             timerSM = new SimpleTimerSM(this, SequenceConditionalRotorSpeed());
             statusLCDStateMachine = new SimpleTimerSM(this, sequence: StatusLCD());
             _myBroadcastListener = IGC.RegisterBroadcastListener(BroadcastTag);
@@ -1605,7 +1604,7 @@ namespace IngameScript
                 printingOutput.Append($"      CRITICAL TANK LEVEL!!\n");
             }
             else printingOutput.Append("");
-            if(averageRT > 0.55 * maxRTCustom)
+            if(averageRT > 0.50 * maxRTCustom)
             {
                 printingOutput.Append($"{lcd_divider}\n CRITICAL RT: DRONE SLOWING DOWN");
             }
@@ -1660,7 +1659,7 @@ namespace IngameScript
 
         public IEnumerable<double> StatusLCD()
         {
-            while (integrityListT0 != null && integrityListT0.Count > 0 && printing)
+            while (integrityListT0 != null && integrityListT0.Count > 0 && printing && !firstRotation)
             {
                 List<IMyTerminalBlock> tempList = integrityListT0.ToList();
                 for (int i = 0; i < tempList.Count; i++)
