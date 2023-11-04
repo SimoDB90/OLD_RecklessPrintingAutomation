@@ -36,7 +36,7 @@ namespace IngameScript
     {
         readonly string stationVersion = "V: 4.1.0";
         const string lcd_changelog =
-            "CHANGELOG VERSION 4.1.0 (x/10/2023):\n" +
+            "CHANGELOG VERSION 4.1.0 (4/11/2023):\n" +
             "-skip command now is \"skip -print\", to start \n" +
             "printing after movement, or \"skip\" to NOT \n" +
             "start printing after movement;\r\n" +
