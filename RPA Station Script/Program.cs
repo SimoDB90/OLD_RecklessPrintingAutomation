@@ -1032,8 +1032,7 @@ namespace IngameScript
         {
             profiler.Run();
             
-            averageRT = Math.Round(profiler.RunningAverageMs, 2);
-            if (averageRT >= maxRTCustom * 0.85) return;
+            
             //debug.WriteText($"AverageRT(ms): {averageRT}");
             if ((updateSource & (UpdateType.Trigger | UpdateType.Terminal)) > 0) // run by a terminal action
             {
@@ -1067,17 +1066,10 @@ namespace IngameScript
 
             if ((updateSource & UpdateType.IGC) > 0)
             {
+                averageRT = Math.Round(profiler.RunningAverageMs, 2);
+                if (averageRT >= maxRTCustom * 0.3) return;
                 ImListening();
                 //debug.WriteText($"AverageRT(ms): {averageRT}");
-                //CONTINUOS STREAM OF INFOS
-                //debug.WriteText("log");
-                if (Rotor.TargetVelocityRPM != DynamicSpeedCustom)
-                {
-                    //debug.WriteText("here");
-                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD>(
-                                    "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix));
-                    //debug.WriteText($"{rotorHead.WorldMatrix}");
-                }
             }
         }
 
@@ -1246,12 +1238,12 @@ namespace IngameScript
                     if (log == "LogWriting")
                     {
 
-                        string RTString = "";
-                        if (averageRT >= 0.85 * maxRTCustom)
+                        string RTString;
+                        if (averageRT >= 0.25 * maxRTCustom)
                         {
-                            RTString = $"{lcd_divider}\n  CRITICAL RT: RPA SLOWING DOWN";
+                            RTString = $"\n{lcd_divider}\n CRITICAL RT: STATION SLOWING DOWN";
                         }
-                        else if (averageRT < 0.85 * maxRTCustom) RTString = "";
+                        else RTString = "";
                         LCDLog.WriteText($"{HeaderCreation()} \n{status}" + $"{RTString}");
                         
 
@@ -1272,6 +1264,15 @@ namespace IngameScript
                             LCDStatus.WriteText($"{StatusLCDHeaderCreation()} \n{status}\n{lcd_divider}\n         WELDERS STATUS\n{lcd_divider}\n{stuckStatus}");
 
                             Echo(compact_commands);
+                            //CONTINUOS STREAM OF INFOS
+                            //debug.WriteText("log");
+                            if (Rotor.TargetVelocityRPM != DynamicSpeedCustom)
+                            {
+                                //debug.WriteText("here");
+                                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD>(
+                                                "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix));
+                                //debug.WriteText($"{rotorHead.WorldMatrix}");
+                            }
                         }
                         catch
                         {

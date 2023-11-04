@@ -284,26 +284,27 @@ namespace IngameScript
         {
             //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"tunrime: {Runtime.TimeSinceLastRun}"));
             profiler.Run();
-            
+            timerSM.Run();
+            statusLCDStateMachine.Run();
             averageRT = Math.Round(profiler.RunningAverageMs, 2);
             maxRT = Math.Round(profiler.MaxRuntimeMs, 2);
-            //Echo($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
-            //    $"Ticks Mult: {multTicks}");
+            Echo($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
+                $"Ticks Mult: {multTicks}");
             //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
             //    $"Ticks Mult: {multTicks}"));
-            if (averageRT <= 0.4 * maxRTCustom)
+            if (averageRT <= 0.2 * maxRTCustom)
             {
                 multTicks = multTickList[0];
             }
-            if (averageRT > 0.4 * maxRTCustom && averageRT <= 0.65 * maxRTCustom)
+            if (averageRT > 0.2 * maxRTCustom && averageRT <= 0.4 * maxRTCustom)
             {
                 multTicks = multTickList[1];
             }
-            if (averageRT > 0.65 * maxRTCustom && averageRT <= 0.80 * maxRTCustom)
+            if (averageRT > 0.4 * maxRTCustom && averageRT <= 0.65 * maxRTCustom)
             {
                 multTicks = multTickList[2];
             }
-            if (averageRT > 0.80 * maxRTCustom)
+            if (averageRT > 0.65 * maxRTCustom)
             {
                 multTicks = multTickList[2];
                 return;
@@ -364,8 +365,7 @@ namespace IngameScript
             }
             if (printing)
             {
-                timerSM.Run();
-                statusLCDStateMachine.Run();
+                
                 if (preciseMoving)
                 {
                     //timerSM.Stop();
@@ -916,7 +916,7 @@ namespace IngameScript
                         time = 0;
                         yield break;
                     }
-                    yield return 40 * multTicks * ticksToSeconds;
+                    yield return 60 * multTicks * ticksToSeconds;
                 }
                 //Echo("block deleted");
                 time += Runtime.TimeSinceLastRun.TotalSeconds;
@@ -1605,11 +1605,11 @@ namespace IngameScript
                 printingOutput.Append($"      CRITICAL TANK LEVEL!!\n");
             }
             else printingOutput.Append("");
-            if(averageRT >= 0.85 * maxRTCustom)
+            if(averageRT > 0.55 * maxRTCustom)
             {
-                printingOutput.Append($"{lcd_divider}\n  CRITICAL RT: RPA SLOWING DOWN");
+                printingOutput.Append($"{lcd_divider}\n CRITICAL RT: DRONE SLOWING DOWN");
             }
-            else if (averageRT< 0.85 * maxRTCustom) printingOutput.Append("");
+            else printingOutput.Append("");
 
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("LogWriting", printingOutput.ToString()));
             printingOutput.Clear();
@@ -1665,7 +1665,7 @@ namespace IngameScript
                 List<IMyTerminalBlock> tempList = integrityListT0.ToList();
                 for (int i = 0; i < tempList.Count; i++)
                 {
-                    yield return 18 * multTicks * ticksToSeconds;
+                    yield return 25 * multTicks * ticksToSeconds;
                     var block = tempList[i];
                     string name = block.CustomName;
                     if (name.Length > 25)
