@@ -1067,10 +1067,10 @@ namespace IngameScript
                 averageRT = Math.Round(profiler.RunningAverageMs, 2);
                 if (averageRT >= maxRTCustom * 0.3)
                 {
-                    //debug.CustomData += "Y\t";
+                    
                     return;
                 }
-                
+                debug.WriteText($"Average Station RT: {averageRT}");
                 ImListening();
                 //debug.WriteText($"AverageRT(ms): {averageRT}");
             }

@@ -290,7 +290,7 @@ namespace IngameScript
             maxRT = Math.Round(profiler.MaxRuntimeMs, 2);
             Echo($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
                 $"Ticks Mult: {multTicks}");
-            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n"));
+            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n"));
             if (averageRT <= 0.2 * maxRTCustom)
             {
                 multTicks = multTickList[0];
@@ -340,7 +340,7 @@ namespace IngameScript
                 {
                     printing = printAfterSkip;
                     skip = false;
-                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"2=\nprinting: {printing}\nprecMov: {preciseMoving}\nskip: {skip}"));
+                    //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"2=\nprinting: {printing}\nprecMov: {preciseMoving}\nskip: {skip}"));
                     if (printing)
                     {
                         time = 0;
@@ -386,7 +386,10 @@ namespace IngameScript
                     //PrintingBlocksListCreation();
                     time = 0;
                     activePrinting = false;
-                    RotorSpeedingUp();
+                    if (Wait<ImWait*0.9d)
+                    {
+                        RotorSpeedingUp(); 
+                    }
                     ActionTime(Cockpit);
                 }
                 if ((Wait < firstRotationTimeMult * ImWait || !firstRotation) && !aligningBool && !setupCommand)
