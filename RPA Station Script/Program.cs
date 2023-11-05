@@ -13,8 +13,11 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Timers;
 using System.Windows.Input;
 using VRage;
 using VRage.Collections;
@@ -24,34 +27,36 @@ using VRage.Game.GUI.TextPanel;
 using VRage.Game.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRage.Game.ObjectBuilders.Definitions;
+using VRage.Scripting;
 using VRageMath;
 
 namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        readonly string stationVersion = "V: 4.0.3";
+        readonly string stationVersion = "V: 4.1.1";
         const string lcd_changelog =
-            "CHANGELOG VERSION 4.0.3 (23/10/2023):\n" +
-            "-Fixed a bug with \"weldWhileMoving\";\n" +
+            "CHANGELOG VERSION 4.1.1 (5/11/2023):\n" +
+            "-small improved to performance;\n" +
             "--------------------------------\n" +
-            "CHANGELOG VERSION 4.0.2 (19/10/2023):\n" +
-            "-Improved Runtime check logic;\n" +
-            "-Improved some logics to initial check on version and init;\n" +
-            "-Fixed a crash if [RPA-Fancy] group is not present;" +
-            "\n--------------------------------\n" +
-            "CHANGELOG VERSION 4.0.1 (15/10/2023):\n" +
-            "-Bug fix on init of the drone;\n" +
-            "-Bug fix on setup command;" +
-            "\n--------------------------------\n" +
-            "CHANGELOG VERSION 4.0.0 (11/10/2023):\n" +
-            "-Fixed some initi bugs;\n" +
-            "-Deleted \"Slow mode\";\n" +
-            "-Huge rework of some logics of the scripts,\n" +
-            "to slow them down when runtime exceeds thresholds;\n" +
-            "-Added an automatic way to store some variables,\n" +
-            " to calculate ETA, to persist through recompiles;" +
-            "\n--------------------------------\n"
+            "CHANGELOG VERSION 4.1.0 (4/11/2023):\n" +
+            "-skip command now is \"skip -print\", to start \n" +
+            "printing after movement, or \"skip\" to NOT \n" +
+            "start printing after movement;\r\n" +
+            "-Only hydro tanks are now considered as drone's tanks;\r\n" +
+            "-Better and more consistent storage of printing variables;\n" +
+            "-Precise Drone movement added;\nNow DroneMovementDistance is the wanted one;" +
+            "Fix a bug with untag commands;\n" +
+            "-Added an allert for low tank level on log LCD;\n" +
+            "-Added an allert for high runtime on log LCD;\n" +
+            "-Fixed some visual minor bugs;\n" +
+            "-Fixed a bug that prevented to send setup;\n" +
+            "-Fixed(?) a bug that stops, sometimes, the rotor;\n" +
+            "-Added a QoL command: motion_print, to toggle\nprintwhilemoving variable;\n" +
+            "-Improved runtime of script;\n" +
+            "--------------------------------\n" +
+            "CHANGELOG VERSION 4.0.3 (23/10/2023):\n" +
+            "-Fixed a bug with \"weldWhileMoving\";\n"
             ;
 
         string droneVersion;
@@ -63,7 +68,7 @@ namespace IngameScript
 
         bool setupCompleted;
         readonly string BroadcastTag = "channel_1";
-        IMyBroadcastListener _myBroadcastListener_station;
+        readonly IMyBroadcastListener _myBroadcastListener_station;
         // Wait variable
         double WaitingCustom;
         const double WaitingDefault = 7;
@@ -110,10 +115,10 @@ namespace IngameScript
         const float RotorSpeedDefault = 4f;
         float RotorSpeedCustom;
         readonly float RotorTorqueValue = 40000000f;
-        const double maxDistanceStopDefault = 150;
+        const double maxDistanceStopDefault = 180;
         double maxDistanceStopCustom;
         //max movement of the drone
-        const double DroneMovDistanceDefault = 1.7;
+        const double DroneMovDistanceDefault = 2.5;
         double DroneMovDistanceCustom;
         const double maxRTDefault = 0.5; //max runtime that server allows to have per player
         double maxRTCustom;
@@ -134,32 +139,33 @@ namespace IngameScript
 
         readonly string commands =
             lcd_divider + "\n" +
-            $"setup: send CustomData to Drone\n\n" +
-            $"start x y z -toggle: start the process;\nadd name of blocks as arguments\nto ignore them during printing\nAdd -toggle if you want to toggle\n    whence finished;\n\n" +
-            $"stop: stop the process;\n" +
-            $"ignore_all: force the weld even\n with missing TB;\n\n" +
-            $"ignore1: skip the active printed block\n\n" +
-            $"init_d: read the CD of the drone\nand add the tag to the blocks" +
+            $"-setup: send CustomData to Drone\n\n" +
+            $"-start x y z -toggle: start the process;\nadd name of blocks as arguments\nto ignore them during printing\nAdd -toggle if you want to toggle\n    whence finished;\n" +
+            $"-stop: stop the process;\n" +
+            $"-ignore_all: force the weld even\n with missing TB;\n" +
+            $"-ignore1: skip the active printed block\n" +
+            $"-init_d: read the CD of the drone\nand add the tag to the blocks\n" +
             lcd_divider + "\n" +
             $"Utility commands:\n" +
             lcd_divider + "\n" +
-            $"guide -off: in depth commands\nAdd -off only to delete\nthe LCD from the guide\n\n" +
-            $"align: force the tug to \nalign to the rotor\n\n" +
-            $"projector: turn on/off the \nDrone's projector\n\n" +
-            $"skip: force drone to move back;\n\n" +
-            $"toggle x y ...: toggle on \nall blocks (no Epsteins or Tools);\nAdd x y ... to IGNORE THESE BLOCKS\n\n" +
-            $"hudlcd:toggle -reset: toggle on/off\n the hudlcd.\nAdd -reset only to reset it;\n\n" +
-            $"changelog -off: print the changelog on the STATUS LCD;\nAdd -off to delete it;\n\n" +
+            $"-guide -off: in depth commands\nAdd -off only to delete\nthe LCD from the guide\n" +
+            $"-align: force the tug to \nalign to the rotor\n" +
+            $"-projector: turn on/off the \nDrone's projector\n" +
+            $"-skip -printing: force drone to move back;\nAdd -printing if you want to\nprint after movement\n" +
+            $"-toggle x y ...: toggle on \nall blocks (no Epsteins or Tools);\nAdd x y ... to IGNORE THESE BLOCKS\n" +
+            $"-hudlcd:toggle -reset: toggle on/off\n the hudlcd.\nAdd -reset only to reset it;\n" +
+            $"-changelog -off: print the changelog on the STATUS LCD;\nAdd -off to delete it;\n" +
             lcd_divider + "\n" +
             $"Quality of Life Commands:\n" +
             lcd_divider + "\n" +
-            $"rotor_ws x y: changes \nDynamiSpeed(RPM)-RotorSpeed(RPM);\n\n" +
-            $"drone_move x: changes \nDroneMovementDistance(meters);\n\n" +
-            $"max_distance x: changes \nMaxDistanceStop(meters);\n\n" +
-            $"waiting x: changes the Wait;\n\n" +
-            $"music -off: play a random music\nAdd -off if want music to stop\n\n" +
-            $"untag_d x: where x is the tag you\nwant to remove from the drone;\n\n" +
-            $"untag_s x: where x is the tag you\nwant to remove from the station;\n\n";
+            $"-rotor_ws x y: changes \nDynamiSpeed(RPM)-RotorSpeed(RPM);\n" +
+            $"-drone_move x: changes \nDroneMovementDistance(meters);\n" +
+            $"-max_distance x: changes \nMaxDistanceStop(meters);\n" +
+            $"-motion_print: toggle weldWhileMoving variable; \n" +
+            $"-waiting x: changes the Wait;\n" +
+            $"-music -off: play a random music\nAdd -off if want music to stop\n" +
+            $"-untag_d x: where x is the tag you\nwant to remove from the drone;\n" +
+            $"-untag_s x: where x is the tag you\nwant to remove from the station;\n";
 
         readonly string compact_commands =
             lcd_divider + "\n" +
@@ -175,7 +181,7 @@ namespace IngameScript
             $"guide -off\n" +
             $"align\n" +
             $"projector\n" +
-            $"skip\n" +
+            $"skip -printing\n" +
             $"toggle x y z ...\n" +
             $"hudlcd:toggle -reset\n" +
             $"changelog -off\n" +
@@ -185,6 +191,7 @@ namespace IngameScript
             $"rotor_ws x y\n" +
             $"drone_move x\n" +
             $"max_distance x\n" +
+            $"motion_print\n" +
             $"waiting x;\n" +
             $"music -off\n" +
             $"untag_d\n" +
@@ -212,8 +219,14 @@ namespace IngameScript
         //immutable list builder for toggle arguments
         readonly ImmutableList<string>.Builder toggleBuilder = ImmutableList.CreateBuilder<string>();
         readonly ImmutableList<string>.Builder startBuilder = ImmutableList.CreateBuilder<string>();
+
+        //runtime
+        readonly Profiler profiler;
+        double averageRT = 0;
         public Program()
         {
+            profiler = new Profiler(this.Runtime, 240);
+
             lcd_printing_version = $"{lcd_version + stationVersion}";
             lcd_header = $"{lcd_divider}\n{lcd_title}\n{lcd_divider}";
             /////////////////////////
@@ -291,8 +304,15 @@ namespace IngameScript
             commandDict["untag_d"] = UntagDrone;
             commandDict["untag_s"] = UntagStation;
             commandDict["init_d"] = InitDrone;
+            commandDict["motion_print"] = MotionPrint;
         }
-
+        public void MotionPrint()
+        {
+            if (weldWhileMovingCustom) weldWhileMovingCustom = false;
+            else weldWhileMovingCustom=true;
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("motion_print", weldWhileMovingCustom));
+            Echo($"Sending message: weldWhileMoving: {weldWhileMovingCustom}\n{commands}");
+        }
         public void IgnoreAll()
         {
             if (correctVersion && setupAlreadySent && !initializedRequired)
@@ -469,6 +489,7 @@ namespace IngameScript
                 IGC.SendBroadcastMessage(BroadcastTag, "start");
                 string output = $"Sending message: start\n{commands}";
                 Echo(output);
+                //debug.CustomData="hudlcd:-.5:.99:0.55";
                 if (toggleAfterFinish)
                 {
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("toggleAfterFinish", true));
@@ -523,9 +544,12 @@ namespace IngameScript
         }
         public void Skip()
         {
+            bool printAfetMove = _commandLine.Switch("printing");
             if (correctVersion && setupAlreadySent && !initializedRequired)
             {
-                IGC.SendBroadcastMessage(BroadcastTag, "skip");
+                if (printAfetMove) { IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("skip", true)); }
+                else { IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("skip", false)); }
+                
                 Echo($"Sending message: skip\n{commands}");
             }
             else if (!setupAlreadySent)
@@ -925,7 +949,7 @@ namespace IngameScript
             else if (RotorList.Count > 1)
             {
                 GridTerminalSystem.GetBlocksOfType(RotorList, x => x.CustomName.Contains(TagCustom));
-                if (RotorList == null || RotorList.Count > 1 || !RotorList.Any())
+                if (RotorList == null || RotorList.Count > 1)
                 {
                     Echo($"No Rotor found or more than 1 Rotor found \nUse [{TagDefault}] tag, or change it in Custom Data");
                     TextWriting($"No Rotor found or more than 1 Rotor found \nUse [{TagDefault}] tag, or change it in Custom Data");
@@ -1004,6 +1028,10 @@ namespace IngameScript
         //in the main we've got the tryparse(argument) into a string and invoke the Action as value of dictionary
         public void Main(string argument, UpdateType updateSource)
         {
+            profiler.Run();
+            
+            
+            //debug.WriteText($"AverageRT(ms): {averageRT}");
             if ((updateSource & (UpdateType.Trigger | UpdateType.Terminal)) > 0) // run by a terminal action
             {
                 if (_commandLine.TryParse(argument))
@@ -1016,7 +1044,7 @@ namespace IngameScript
                         Echo("No command specified");
                         TextWriting("No command specified");
                     }
-                    else if (commandDict.TryGetValue(commandString, out commandAction))
+                    else if (commandDict.TryGetValue(commandString.ToLower(), out commandAction))
                     {
                         commandAction();
                     }
@@ -1036,7 +1064,14 @@ namespace IngameScript
 
             if ((updateSource & UpdateType.IGC) > 0)
             {
+                averageRT = Math.Round(profiler.RunningAverageMs, 2);
+                if (averageRT >= maxRTCustom * 0.3)
+                {
+                    return;
+                }
+                //debug.WriteText($"Average Station RT: {averageRT}");
                 ImListening();
+                //debug.WriteText($"AverageRT(ms): {averageRT}");
             }
         }
 
@@ -1153,6 +1188,7 @@ namespace IngameScript
             while (_myBroadcastListener_station.HasPendingMessage)
             {
                 var myIGCMessage_fromDrone = _myBroadcastListener_station.AcceptMessage();
+                
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string>)
                 {
                     var tuple = (MyTuple<string, string>)myIGCMessage_fromDrone.Data;
@@ -1192,83 +1228,98 @@ namespace IngameScript
                     }
                     if (log == "ActiveWelding")
                     {
+
                         try
                         {
-                            LCDActive.WriteText($"{status}");
+                            LCDActive.WriteText($"{status}" +
+                            $"{"Station Avg RT",-19}{"=  " + averageRT + " ms",13}\n");
                         }
                         catch { }
+
                     }
                     if (log == "LogWriting")
                     {
-                        LCDLog.WriteText($"{HeaderCreation()} \n{status}");
-                        //continues stream of rotorHead infos
-                        if (activation)
+
+                        string RTString;
+                        if (averageRT >= 0.25 * maxRTCustom)
                         {
-                            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD>(
-                                                "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix));
+                            RTString = $"\n{lcd_divider}\n CRITICAL RT: STATION SLOWING DOWN";
                         }
+                        else RTString = "";
+                        LCDLog.WriteText($"{HeaderCreation()} \n{status}" + $"{RTString}");
+                        //CONTINUOS STREAM OF INFOS
+                        //debug.WriteText("log");
+                        if (Rotor.TargetVelocityRPM != DynamicSpeedCustom)
+                        {
+                            //debug.WriteText("here");
+                            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD, float>(
+                                            "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix, Rotor.TargetVelocityRPM));
+                            //debug.WriteText($"{rotorHead.WorldMatrix}");
+                        }
+
                     }
                     if (log == "StatusWriting")
                     {
+                        try
+                        {
+                            string LFBlock = "Looking for the Block";
+                            string stuckedN = "Unstuck";
+                            string fastTrip = "Fast rotation";
+                            if (Rotor.TargetVelocityRPM != RotorSpeedCustom && Rotor.TargetVelocityRPM != 0 &&
+                                Rotor.TargetVelocityRPM != DynamicSpeedCustom) stuckStatus = LFBlock;
+                            if (Rotor.TargetVelocityRPM == RotorSpeedCustom) stuckStatus = stuckedN;
+                            if (Rotor.TargetVelocityRPM == 0) stuckStatus = "Welding";
+                            if (Rotor.TargetVelocityRPM >= DynamicSpeedCustom-3) stuckStatus = fastTrip;
 
-                        string stuckedY = "Looking for the Block";
-                        string stuckedN = "Unstuck";
-                        string fastTrip = "Fast rotation";
-                        if (Rotor.TargetVelocityRPM != RotorSpeedCustom && Rotor.TargetVelocityRPM != 0 &&
-                            Rotor.TargetVelocityRPM != DynamicSpeedCustom) stuckStatus = stuckedY;
-                        else if (Rotor.TargetVelocityRPM == RotorSpeedCustom) stuckStatus = stuckedN;
-                        else if (Rotor.TargetVelocityRPM == 0) stuckStatus = "Welding";
-                        else if (Rotor.TargetVelocityRPM == DynamicSpeedCustom) stuckStatus = fastTrip;
+                            LCDStatus.WriteText($"{StatusLCDHeaderCreation()} \n{status}\n{lcd_divider}\n         WELDERS STATUS\n{lcd_divider}\n{stuckStatus}");
 
-                        LCDStatus.WriteText($"{StatusLCDHeaderCreation()} \n{status}\n{lcd_divider}\n         WELDERS STATUS\n{lcd_divider}\n{stuckStatus}");
-
-                        Echo(compact_commands);
+                            Echo(compact_commands);
+                            
+                        }
+                        catch
+                        {
+                        }
+                    }
+                    ///LOG LCD
+                    if (log == "debug")
+                    {
+                        try
+                        {
+                            debug.WriteText(status);
+                            //debug.CustomData += status;
+                        }
+                        catch
+                        { }
                     }
                 }
-                //DEBUG LCD
-                //if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, string>)
-                //{
-                //    try
-                //    {
-                //        var tuple = (MyTuple<string, string>)myIGCMessage_fromDrone.Data;
-                //        string deb = tuple.Item1;
-                //        var message = tuple.Item2;
-                //        if (deb == "Debug") debug.WriteText(message);
-                //        //var tuple = (MyTuple<string, string, string, string, string>)myIGCMessage_fromDrone.Data;
-                //        //string checkTime = tuple.Item1;
-                //        //string name = tuple.Item2;
-                //        //string integrity = tuple.Item3;
-                //        //string newIntegrity = tuple.Item4;
-                //        //string angle = tuple.Item5;
-                //        //debug.WriteText($"DEBUG\nStuck Time check: {checkTime}\nBlock Name: {name}\n" +
-                //        //    $"Integrity: {integrity}\nNewIntegrity: {newIntegrity}\nAngle: {angle}");
-
-                //    }
-                //    catch
-                //    { }
-                //}
+                
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is string)
                 {
                     string data_log = myIGCMessage_fromDrone.Data.ToString();
                     LCDLog.WriteText($"{header} \n{data_log}");
                 }
-
+                
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is float)
                 {
                     Rotor.TargetVelocityRPM = (float)(myIGCMessage_fromDrone.Data);
                 }
-
+                
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, bool>)
                 {
+                    
                     var tuple = (MyTuple<string, bool>)myIGCMessage_fromDrone.Data;
                     string myString = tuple.Item1;
                     if (myString == "activation")
                     {
+                        //debug.WriteText($"here");
                         activation = tuple.Item2;
+                        //Echo($"activation: {activation}");
                         if (activation)
                         {
+                            //debug.WriteText($"activation: {activation}");
                             Rotor.RotorLock = false;
                             Rotor.Enabled = true;
+                            //debug.WriteText($"rotor: {Rotor.Enabled}");
                             foreach (var welder in WelderList)
                             {
                                 welder.Enabled = true;
@@ -1334,8 +1385,98 @@ namespace IngameScript
                 }
             }
         }
+        internal sealed class Profiler
+        {
+            public double RunningAverageMs { get; private set; }
+            private double AverageRuntimeMs
+            {
+                get
+                {
+                    double sum = runtimeCollection[0];
+                    for (int i = 1; i < BufferSize; i++)
+                    {
+                        sum += runtimeCollection[i];
+                    }
+                    return (sum / BufferSize);
+                }
+            }
+            /// <summary>Use <see cref="MaxRuntimeMsFast">MaxRuntimeMsFast</see> if performance is a major concern</summary>
+            public double MaxRuntimeMs
+            {
+                get
+                {
+                    double max = runtimeCollection[0];
+                    for (int i = 1; i < BufferSize; i++)
+                    {
+                        if (runtimeCollection[i] > max)
+                        {
+                            max = runtimeCollection[i];
+                        }
+                    }
+                    return max;
+                }
+            }
+            public double MaxRuntimeMsFast { get; private set; }
+            public double MinRuntimeMs
+            {
+                get
+                {
+                    double min = runtimeCollection[0];
+                    for (int i = 1; i < BufferSize; i++)
+                    {
+                        if (runtimeCollection[i] < min)
+                        {
+                            min = runtimeCollection[i];
+                        }
+                    }
+                    return min;
+                }
+            }
+            public int BufferSize { get; }
 
+            private readonly double bufferSizeInv;
+            private readonly IMyGridProgramRuntimeInfo runtimeInfo;
+            private readonly double[] runtimeCollection;
+            private int counter = 0;
 
+            /// <summary></summary>
+            /// <param name="runtimeInfo">Program.Runtime instance of this script.</param>
+            /// <param name="bufferSize">Buffer size. Must be 1 or higher.</param>
+            public Profiler(IMyGridProgramRuntimeInfo runtimeInfo, int bufferSize = 300)
+            {
+                this.runtimeInfo = runtimeInfo;
+                this.MaxRuntimeMsFast = runtimeInfo.LastRunTimeMs;
+                this.BufferSize = MathHelper.Clamp(bufferSize, 1, int.MaxValue);
+                this.bufferSizeInv = 1.0 / BufferSize;
+                this.runtimeCollection = new double[bufferSize];
+                this.runtimeCollection[counter] = runtimeInfo.LastRunTimeMs;
+                this.counter++;
+            }
+
+            public void Run()
+            {
+                RunningAverageMs -= runtimeCollection[counter] * bufferSizeInv;
+                RunningAverageMs += runtimeInfo.LastRunTimeMs * bufferSizeInv;
+
+                runtimeCollection[counter] = runtimeInfo.LastRunTimeMs;
+
+                if (runtimeInfo.LastRunTimeMs > MaxRuntimeMsFast)
+                {
+                    MaxRuntimeMsFast = runtimeInfo.LastRunTimeMs;
+                }
+
+                counter++;
+
+                if (counter >= BufferSize)
+                {
+                    counter = 0;
+                    //Correct floating point drift
+                    RunningAverageMs = AverageRuntimeMs;
+                    MaxRuntimeMsFast = runtimeInfo.LastRunTimeMs;
+                }
+            }
+        }
+        
 
 
     }

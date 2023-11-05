@@ -29,7 +29,7 @@ namespace IngameScript
     partial class Program : MyGridProgram
     {
 
-        readonly string droneVersion = "V: 4.0.3";
+        readonly string droneVersion = "V: 4.1.1";
         readonly MyIni _ini = new MyIni();
         double Wait;
         double ImWait = 7;
@@ -40,9 +40,12 @@ namespace IngameScript
         readonly List<IMyCockpit> CockpitList = new List<IMyCockpit>();
         readonly List<IMyProjector> ProjectorList = new List<IMyProjector>();
         readonly List<IMyThrust> ThrustersList = new List<IMyThrust>();
+        readonly List<IMyThrust> forwardThrusters = new List<IMyThrust>();
         readonly List<IMyThrust> NestedThrusters = new List<IMyThrust>();
         readonly List<IMyRadioAntenna> antennaList = new List<IMyRadioAntenna>();
-        readonly List<IMyGasTank> tank = new List<IMyGasTank>();
+        List<IMyGasTank> tank = new List<IMyGasTank>();
+        MyDefinitionId HydrogenGasId = MyDefinitionId.Parse("MyObjectBuilder_GasProperties/Hydrogen");
+        MyResourceSinkComponent HydroType;
 
         IMyShipController Cockpit;
         IMyProjector Projector;
@@ -52,19 +55,20 @@ namespace IngameScript
 
         Vector3D start;
 
-        bool checkDistance;
         float thrust;
         float mass;
         readonly float acceleration = 0.4f; //wanted acceleration in m/s^2
-
+        float maxBreakingThrust;
+        float maxDecel;
         string TagCustom;
         int ThrustersInGroup = 0;
 
         ///safety distance to force stop
         double maxDistanceStop;
         double safetyDistanceStop = 0;
+        
         //movement of the drone
-        double DroneMovDistance = 1.5f;
+        double DroneMovDistance = 2.5f;
 
         /// Rotor's setting
         bool firstRotation = true;
@@ -78,9 +82,11 @@ namespace IngameScript
         Vector3D rotorFacing;
         bool welder_right;
         bool welder_forward;
+        double rotorSpeed = 0;
         int welderSign;//check orientation between welders and rotor
         const double rotorToll = 0.04;
         double angle;
+        Vector3D planeNormal;
 
         bool skip = false; //bool for skip command
         Vector3D skipStartingDist;
@@ -91,6 +97,7 @@ namespace IngameScript
         const double firstRotationTimeMult = 0.3;
         //weld while moving --> during movement, welders are off
         bool weldWhileMoving = false;
+        bool printAfterSkip = false;
 
         //lcd printing strings
         readonly string[] lcd_printing_spinners = new string[] { "P", "PR", "PRI", "PRIN", "PRINT", "PRINTI", "PRINTIN", "PRINTING", "PRINTING.", "PRINTING..." };
@@ -104,8 +111,10 @@ namespace IngameScript
         const string lcd_proj_level = "     PROJECTION LEVEL";
         string lcd_header;
         bool imMoving = false; //check if the drone is moving
+        bool preciseMoving = false;
+        double velocity;
         //string printingStatus;
-        int totBlocks;
+        int totBlocks = 100000;
         bool imProjecting;
         float totBlockPercentage;
         int totBlockMultiplier;
@@ -119,7 +128,7 @@ namespace IngameScript
         bool activePrinting; //are TB integrity increasing?
         bool printing = false; //when start is sent
         double timeStep = 0;
-        readonly double gyrosTolerance = 0.06; // 5 degrees
+        readonly double gyrosTolerance = 0.05; // 2,8 degrees
         readonly double maxGyroRotation = 0.43; // 25 degress
         //integrity check stuff
         double time = 0;
@@ -139,7 +148,7 @@ namespace IngameScript
 
         //Status LCD lIST
         readonly StringBuilder printingStatus = new StringBuilder();
-        StringBuilder activeOuput = new StringBuilder();
+        readonly StringBuilder activeOuput = new StringBuilder();
         //
         IMyTerminalBlock activeWeldedBlockName;
         float activeWeldedBlockIntegrity = 0;
@@ -153,7 +162,7 @@ namespace IngameScript
         Profiler profiler;
         double averageRT = 0;
         double maxRT = 0;
-        double maxRTCustom = 0;
+        double maxRTCustom = 0.5;
 
         //init Timer State machine
         SimpleTimerSM timerSM;
@@ -165,7 +174,7 @@ namespace IngameScript
         {
             _myBroadcastListener = IGC.RegisterBroadcastListener(BroadcastTag);
             _myBroadcastListener.SetMessageCallback(BroadcastTag);
-            profiler = new Profiler(this.Runtime);
+            profiler = new Profiler(this.Runtime, 240);
             timerSM = new SimpleTimerSM(this, SequenceConditionalRotorSpeed());
             statusLCDStateMachine = new SimpleTimerSM(this, sequence: StatusLCD());
             Starter();
@@ -196,48 +205,42 @@ namespace IngameScript
                 ignoredBlocks = 0;
             }
         }
-        public void Save()
+        public void SaveVariables()
         {
-            Storage = "";
-            Storage = string.Join(";",
-                totBlocks.ToString() ?? "0",
-                totRemaining.ToString() ?? "0",
-                totTime.ToString() ?? "0",
-                averageTime.ToString() ?? "0",
-                builtBlocks.ToString() ?? "0",
-                averageBlocks.ToString() ?? "0",
-                refreshBlocks.ToString() ?? "0",
-                sectionsBuilt.ToString() ?? "0",
-                ignoredBlocks.ToString() ?? "0"
-                );
+            _ini.Clear();
+            _ini.Set("printing", "totBlocks", totBlocks);
+            _ini.Set("printing", "totRemaining", totRemaining);
+            _ini.Set("printing", "totTime", totTime);
+            _ini.Set("printing", "averageTime", averageTime);
+            _ini.Set("printing", "builtBlocks", builtBlocks);
+            _ini.Set("printing", "averageBlocks", averageBlocks);
+            _ini.Set("printing", "refreshBlocks", refreshBlocks);
+            _ini.Set("printing", "sectionsBuilt", sectionsBuilt);
+            _ini.Set("printing", "ignoredBlocks", ignoredBlocks);
+            Storage = _ini.ToString();
+            //Echo($"storage: {Storage}");
         }
         public void LoadStoredData()
         {
-
-            if (Storage.Length >= 2 && Storage != null)
+            if(_ini.TryParse(Storage))
             {
-                string[] storedData = Storage.Split(';');
-                int[] valuesRetrieved;
-                valuesRetrieved = new int[storedData.Length];
-                for (int i = 0; i < storedData.Length; i++)
-                {
-                    int.TryParse(storedData[i], out valuesRetrieved[i]);
-                }
+                totBlocks = _ini.Get("printing", "totBlocks").ToInt32();
+                totRemaining = _ini.Get("printing", "totRemaining").ToInt32();
+                totTime = _ini.Get("printing", "totTime").ToInt32();
+                averageTime = _ini.Get("printing", "averageTime").ToInt32();
+                builtBlocks = _ini.Get("printing", "builtBlocks").ToInt32();
+                averageBlocks = _ini.Get("printing", "averageBlocks").ToInt32();
+                refreshBlocks = _ini.Get("printing", "refreshBlocks").ToInt32();
+                sectionsBuilt = _ini.Get("printing", "sectionsBuilt").ToInt32();
+                ignoredBlocks = _ini.Get("printing", "ignoredBlocks").ToInt32();
                 if (Projector.IsProjecting)
                 {
-                    ignoredBlocks = valuesRetrieved[8];
                     var totalBlocks = TotalBlocks();
-                    var totalRemaining = Projector.RemainingBlocks - valuesRetrieved[6];
-                    if (totalBlocks == valuesRetrieved[0] && totalRemaining == valuesRetrieved[1])
+                    var totalRemaining = Projector.RemainingBlocks - refreshBlocks;
+
+                    if (totalBlocks == totBlocks && totalRemaining == totRemaining)
                     {
-                        totRemaining = valuesRetrieved[0];
-                        totTime = valuesRetrieved[2];
-                        averageTime = valuesRetrieved[3];
-                        builtBlocks = valuesRetrieved[4];
-                        averageBlocks = valuesRetrieved[5];
-                        refreshBlocks = valuesRetrieved[6];
-                        sectionsBuilt = valuesRetrieved[7];
-                        ignoredBlocks = valuesRetrieved[8];
+                        //IGC.SendBroadcastMessage(BroadcastTag, "Stored Data loaded for this BP;");
                         Echo($"Load Stored Data:\nNumber of sections= {sectionsBuilt}\nTotal printing Time= {totTime}\n" +
                             $"Average Time= {averageTime}\nAverage blocks/section= {averageBlocks}\nSkipped Blocks= {ignoredBlocks}");
                     }
@@ -252,24 +255,19 @@ namespace IngameScript
                         sectionsBuilt = 0;
                         ignoredBlocks = 0;
                         Echo($"No Stored Data to load for this BP;");
+                        //IGC.SendBroadcastMessage(BroadcastTag, "No Stored Data to load for this BP;");
                     }
                 }
-
                 else
                 {
-                    totRemaining = 0;
-                    totTime = 0;
-                    averageTime = 0;
-                    builtBlocks = 0;
-                    averageBlocks = 0;
-                    refreshBlocks = 0;
-                    sectionsBuilt = 0;
-                    ignoredBlocks = 0;
-                    Echo($"Projector is turned off, no Data to load;");
+                    Echo($"Projector is off: turn it on to load Data;");
+                    //IGC.SendBroadcastMessage(BroadcastTag, "Projector is off: turn it on to load Data;");
+                    return;
                 }
             }
             else
-            {
+                {
+
                 totRemaining = 0;
                 totTime = 0;
                 averageTime = 0;
@@ -278,12 +276,14 @@ namespace IngameScript
                 refreshBlocks = 0;
                 sectionsBuilt = 0;
                 ignoredBlocks = 0;
-                Echo($"No Stored Data to load yet;");
+                Echo($"Can't parse the Storage;");
+                //IGC.SendBroadcastMessage(BroadcastTag, "No Stored Data to load for this BP;");
             }
         }
 
         public void Main(string argument, UpdateType updateSource)
         {
+            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"tunrime: {Runtime.TimeSinceLastRun}"));
             profiler.Run();
             timerSM.Run();
             statusLCDStateMachine.Run();
@@ -291,96 +291,126 @@ namespace IngameScript
             maxRT = Math.Round(profiler.MaxRuntimeMs, 2);
             Echo($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
                 $"Ticks Mult: {multTicks}");
-            if (averageRT <= 0.5 * maxRTCustom)
+            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n"));
+            if (averageRT <= 0.2 * maxRTCustom)
             {
                 multTicks = multTickList[0];
             }
-            if (averageRT > 0.5 * maxRTCustom && averageRT < 0.75 * maxRTCustom)
+            if (averageRT > 0.2 * maxRTCustom && averageRT <= 0.4 * maxRTCustom)
             {
                 multTicks = multTickList[1];
             }
-            if (averageRT > 0.75 * maxRTCustom && averageRT <= 0.85 * maxRTCustom)
+            if (averageRT > 0.4 * maxRTCustom && averageRT <= 0.55 * maxRTCustom)
             {
                 multTicks = multTickList[2];
             }
-            if (averageRT > 0.85 * maxRTCustom)
+            if (averageRT > 0.55 * maxRTCustom)
             {
                 multTicks = multTickList[2];
                 return;
             }
-            if (argument.ToLower() == "init_d" && !printing)
+            if ((updateSource & (UpdateType.Trigger | UpdateType.Terminal)) > 0)
             {
-                CustomData();
-                SetupBlocks();
-                if (setupCompleted)
+                if (argument.ToLower() == "init_d" && !printing)
                 {
-                    printing = false;
-                    //Echo($"DRONE SETUP COMPLETED!\nVersion: {droneVersion}\nNumbers of thrusters in group: {ThrustersInGroup}\nCockpit Found \nProjector Found \nFuel Tank: {tank.Count}\nTag used: {TagCustom}");
-                    IGC.SendBroadcastMessage(BroadcastTag, $"    |DRONE SETUP COMPLETED!\n|Version: {droneVersion}\n|Numbers of active thrusters: {ThrustersInGroup} " +
-                        $"\n|Cockpit Found \n|Projector Found\n|Fuel Tank: {tank.Count}\n|Tag used: [{TagCustom}]\n");
+                    CustomData();
+                    SetupBlocks();
+                    if (setupCompleted)
+                    {
+                        Echo($"DRONE SETUP COMPLETED!\nVersion: {droneVersion}\nNumbers of thrusters in group: {ThrustersInGroup}\nCockpit Found \nProjector Found \nFuel Tank: {tank.Count}\nTag used: {TagCustom}");
+                        IGC.SendBroadcastMessage(BroadcastTag, $"    |DRONE SETUP COMPLETED!\n|Version: {droneVersion}\n|Numbers of active thrusters: {ThrustersInGroup} " +
+                            $"\n|Cockpit Found \n|Projector Found\n|Fuel Tank: {tank.Count}\n|Tag used: [{TagCustom}]");
+                    }
                 }
-                Starter();
+                if (argument.ToLower() == "stop")
+                {
+                    Echo($"Stopping");
+                    printing = false; //stop the print-->for the main
+                    Stop();
+                    SaveVariables();
+                } 
             }
-            if (argument.ToLower() == "stop")
-            {
-                Wait = ImWait;
-                firstRotation = false;
-                checkDistance = false;
-                Stop(ThrusterGroup: ThrustersList);
-                timerSM.AutoStart = false;
-                timerSM.Stop();
-                statusLCDStateMachine.AutoStart = false;
-                statusLCDStateMachine.Stop();
-                activation = false;
-                IGC.SendBroadcastMessage(BroadcastTag, newRotorSpeed = 0);
-                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
-                IGC.SendBroadcastMessage(BroadcastTag, "Stopping command processed.");
-                foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
-                Runtime.UpdateFrequency = UpdateFrequency.None;
-                printing = false; //stop the print-->for the main
-                Save();
-            }
+
             if (skip)
             {
                 printing = false;
-
-                if (Vector3D.Distance(skipStartingDist, Me.GetPosition()) >= DroneMovDistance)
+                PreciseMovement(Cockpit, ThrustersList, totRemaining, remainingTB, skipStartingDist);
+                //Echo($"distance: {Vector3D.Distance(skipStartingDist, Me.GetPosition())}");
+                //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"1=\nprinting: {printing}\nprecMov: {preciseMoving}\nskip: {skip}"));
+                if (preciseMoving==false)
                 {
-                    DistanceCheck(ThrusterGroup: ThrustersList);
-                }
-                if (!checkDistance)
-                {
+                    printing = printAfterSkip;
                     skip = false;
+                    //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"2=\nprinting: {printing}\nprecMov: {preciseMoving}\nskip: {skip}"));
+                    if (printing)
+                    {
+                        time = 0;
+                        PrintingBlocksListCreation();
+                        totBlocks = TotalBlocks();
+                        Runtime.UpdateFrequency = UpdateFrequency.Update1;
+                        activation = true;
+                        IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
+                        //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"3=\nprinting: {printing}\nprecMov: {preciseMoving}\nskip: {skip}"));
+                        int remainingTB = integrityListT0.Count;
+                        totRemaining = Projector.RemainingBlocks - refreshBlocks;
+                        safetyDistanceStop = Math.Round(Vector3D.Distance(rotorPosition, Cockpit.GetPosition()), 2);
+                        PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
+                        statusLCDStateMachine.Start();
+                        timerSM.Start();
+                        statusLCDStateMachine.AutoStart = true;
+                        timerSM.AutoStart = true;
+                        setupCommand = false;
+                    }
                 }
             }
             if (printing)
             {
-
+                if (preciseMoving)
+                {
+                    //Echo($"main precMov: {preciseMoving}");
+                    PreciseMovement(Cockpit, ThrustersList, totRemaining, remainingTB, start);
+                }
                 if (aligningBool)
                 {
                     //Echo("aligning");
                     ImAligning(ThrustersList);
                 }
-                if (checkDistance && Vector3D.Distance(start, Me.GetPosition()) >= DroneMovDistance)
-                {
-                    DistanceCheck(ThrusterGroup: ThrustersList);
-                }
                 if (Wait >= firstRotationTimeMult * ImWait && firstRotation && !aligningBool)
                 {
                     time = 0;
-                    RotorSpeedingUp();
-                    ActionTime(Cockpit, ThrustersList);
+                    activePrinting = false;
+                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"OUT == rot speed: {rotorSpeed}"));
+                    if (rotorSpeed<DynamicSpeed-1d || rotorSpeed>DynamicSpeed+1d)
+                    {
+                        IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"IN == rot speed: {rotorSpeed}"));
+                        RotorSpeedingUp(); 
+                    }
+                    ActionTime(Cockpit);
                 }
                 if ((Wait < firstRotationTimeMult * ImWait || !firstRotation) && !aligningBool && !setupCommand)
                 {
                     firstRotation = false;
-                    ActionTime(Cockpit, ThrustersList);
+                    ActionTime(Cockpit);
                     IGC.SendBroadcastMessage(BroadcastTag, newRotorSpeed);
                 }
             }
+            if(!printing && !skip)
+            {
+                timerSM.AutoStart = false;
+                statusLCDStateMachine.AutoStart = false;
+                timerSM.Stop();
+                statusLCDStateMachine.Stop();
+                activation = false;
+                IGC.SendBroadcastMessage(BroadcastTag, newRotorSpeed = 0);
+                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
+                
+                foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
+                Runtime.UpdateFrequency = UpdateFrequency.None;
+                SaveVariables();
+            }
             if ((updateSource & UpdateType.IGC) > 0)
             {
-                ImListening(Cockpit, Projector, ThrustersList);
+                ImListening(Cockpit, Projector);
             }
         }
         public void UntagDrone(string tag)
@@ -398,7 +428,7 @@ namespace IngameScript
                     IGC.SendBroadcastMessage(BroadcastTag, $"Tag {tag} removed from\n{everything.Count} Drone's blocks");
                 }
             }
-            else if (everything.Count == 0)
+            else if (everything==null || everything.Count == 0)
             {
                 //Echo($"asd: {everything.Count}");
                 IGC.SendBroadcastMessage(BroadcastTag, $"No Tag: {tag} found in the Drone");
@@ -418,27 +448,11 @@ namespace IngameScript
             }
             // Set the values to make sure they exist. They could be missing even when parsed ok.
             _ini.Set("data", "TAG", TagCustom);
-
             Me.CustomData = _ini.ToString();
             ///////////////////////////
         }
         public void SetupBlocks()
         {
-            //check if any connector is connected(shouldn't)
-            List<IMyShipConnector> connectors = new List<IMyShipConnector>();
-            GridTerminalSystem.GetBlocksOfType(connectors);
-            if (connectors != null && connectors.Count > 0)
-            {
-                foreach (var connector in connectors)
-                {
-                    if (connector.IsConnected)
-                    {
-                        Echo("Drone is connected via connector.\nPlease, unlock the drone, before Initialization");
-                        IGC.SendBroadcastMessage(BroadcastTag, "Drone is connected via connector.\nPlease, unlock the drone, \nbefore Initialization");
-                        return;
-                    }
-                }
-            }
             Me.CustomData += _ini.DeleteSection("Do No Change lines below");
             //gyros
             GridTerminalSystem.GetBlocksOfType(imGyroList);
@@ -448,29 +462,67 @@ namespace IngameScript
             GridTerminalSystem.GetBlocksOfType(tank, x => x.CustomName.Contains(TagCustom));
             if (tank != null && tank.Count > 0)
             {
-                _ini.Set("Do No Change lines below", "Tank", tank.Count);
+                List<IMyGasTank> tempList = new List<IMyGasTank>();
+                foreach (var t in tank)
+                {
+                    HydroType = t.Components.Get<MyResourceSinkComponent>();
+                    if (HydroType != null && HydroType.AcceptedResources.Contains(HydrogenGasId))
+                    {
+                        tempList.Add(t);
+                    }
+                    else if(!HydroType.AcceptedResources.Contains(HydrogenGasId))
+                    {
+                        t.CustomName += t.CustomName.Replace(TagCustom, "");
+                    }
+                }
+                if(tempList!=null && tempList.Count>0)
+                {
+                    tank.Clear();
+                    tank = tempList;
+                    _ini.Set("Do No Change lines below", "Tank", tank.Count);
+                }
             }
             if (tank == null || tank.Count == 0)
             {
                 GridTerminalSystem.GetBlocksOfType(tank);
-                if (tank != null && tank.Count > 1)
+                List<IMyGasTank> tempList = new List<IMyGasTank>();
+                if (tank != null && tank.Count>0)
                 {
-                    Echo("SETUP NOT COMPLETED: If you have more than 1 tank, tag them");
-                    IGC.SendBroadcastMessage(BroadcastTag, $"{lcd_header}\n   SETUP NOT COMPLETED:\nIf you have more than 1 tank, tag them");
-                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("DroneSetup", setupCompleted));
-                    return;
+                    foreach (var t in tank)
+                    {
+                        HydroType = t.Components.Get<MyResourceSinkComponent>();
+                        if (HydroType != null && HydroType.AcceptedResources.Contains(HydrogenGasId))
+                        {
+                            tempList.Add(t);
+                        }
+                    }
                 }
-                if (tank == null || tank.Count == 0)
+                else if(tank == null || tank.Count == 0)
                 {
                     Echo("SETUP NOT COMPLETED: Add one Fuel tank for your Tug beratna.. come on you weirdo");
                     IGC.SendBroadcastMessage(BroadcastTag, $"{lcd_header}\n   SETUP NOT COMPLETED:\nAdd one Fuel tank for your Tug beratna.. come on you weirdo");
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("DroneSetup", setupCompleted));
                     return;
                 }
-                if (tank != null && tank.Count == 1)
+                if (tempList != null && tempList.Count > 1)
                 {
-                    IMyGasTank Tank;
-                    Tank = tank[0];
+                    Echo("SETUP NOT COMPLETED: If you have more than 1 tank, tag them");
+                    IGC.SendBroadcastMessage(BroadcastTag, $"{lcd_header}\n   SETUP NOT COMPLETED:\nIf you have more than 1 tank, tag them");
+                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("DroneSetup", setupCompleted));
+                    return;
+                }
+                if (tempList == null || tempList.Count == 0)
+                {
+                    Echo("SETUP NOT COMPLETED: Add one Fuel tank for your Tug beratna.. come on you weirdo");
+                    IGC.SendBroadcastMessage(BroadcastTag, $"{lcd_header}\n   SETUP NOT COMPLETED:\nAdd one Fuel tank for your Tug beratna.. come on you weirdo");
+                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("DroneSetup", setupCompleted));
+                    return;
+                }
+                if (tempList != null && tempList.Count == 1)
+                {
+                    IMyGasTank Tank = tempList[0];
+                    tank.Clear();
+                    tank = tempList;
                     if (!Tank.CustomName.Contains(TagCustom))
                     {
                         Tank.CustomName += "." + TagCustom;
@@ -517,9 +569,9 @@ namespace IngameScript
                     return;
                 }
                 Cockpit = CockpitList[0];
+                Cockpit.DampenersOverride = true;
                 _ini.Set("Do No Change lines below", "Cockpit", 1);
             }
-
             // SET PROJECTOR: IF ONLY ONE, ASSIGN THE TAG AUTOMATICALLY
             GridTerminalSystem.GetBlocksOfType(ProjectorList);
             if (ProjectorList != null && ProjectorList.Count == 1)
@@ -606,6 +658,15 @@ namespace IngameScript
             {
                 ThrustersInGroup = blockTagged.Count;
             }
+            //Calculate max thrust
+            maxBreakingThrust = 0;
+            GridTerminalSystem.GetBlocksOfType(forwardThrusters, x => x.WorldMatrix.Forward == Cockpit.WorldMatrix.Backward && x.IsWorking);
+            foreach (var t in forwardThrusters)
+            {
+                maxBreakingThrust += t.MaxEffectiveThrust;
+            }
+
+            //finish setting up blocks
             Me.CustomData = _ini.ToString();
 
             remainingTB = 0;
@@ -613,13 +674,24 @@ namespace IngameScript
             maxTime = 0;
             minTime = 100;
             endingBlocks = 0;
-
+            averageBlocks = 0;
+            LoadStoredData();
             //SETUP COMPLETED
             setupCompleted = true;
-
-            profiler = new Profiler(this.Runtime);
-            timerSM = new SimpleTimerSM(this, sequence: SequenceConditionalRotorSpeed());
+            lcd_header = $"{lcd_divider}\n{lcd_title}\n{lcd_divider}";
+            start = Me.GetPosition();
+            Echo("Drone Log:\n");
+            initializedRequired = CheckInit();
+            profiler = new Profiler(this.Runtime, 240);
+            timerSM = new SimpleTimerSM(this, SequenceConditionalRotorSpeed());
             statusLCDStateMachine = new SimpleTimerSM(this, sequence: StatusLCD());
+            _myBroadcastListener = IGC.RegisterBroadcastListener(BroadcastTag);
+            _myBroadcastListener.SetMessageCallback(BroadcastTag);
+            //sending the version of the script to the station
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("droneVersion", droneVersion));
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("initRequired", initializedRequired));
+            setupAlreadySent = false;
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("SetupSent", setupAlreadySent));
         }
         //check initialization when recompiling
         public bool CheckInit()
@@ -652,15 +724,36 @@ namespace IngameScript
                 return true;
             }
             //CHECK BLOCKS AND COMPARE WITH CUSTOM DATA
+            //hydro tanks
             GridTerminalSystem.GetBlocksOfType(tank, x => x.CustomName.Contains(TagCustom));
-            if (tank == null || tank.Count != tankCount)
+            List<IMyGasTank> tempList = new List<IMyGasTank>();
+            if (tank!=null && tank.Count>0)
+            {
+                foreach (var t in tank)
+                {
+                    HydroType = t.Components.Get<MyResourceSinkComponent>();
+                    if (HydroType != null && HydroType.AcceptedResources.Contains(HydrogenGasId))
+                    {
+                        tempList.Add(t);
+                    }
+                } 
+            }
+            if (tank == null || tank.Count == 0)
             {
                 Echo("Tank failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
                 IGC.SendBroadcastMessage(BroadcastTag, "Tank failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
                 return true;
             }
-            IMyGasTank Tank;
-            Tank = tank[0];
+            if (tempList == null || tempList.Count != tankCount)
+            {
+                Echo("Tank failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
+                IGC.SendBroadcastMessage(BroadcastTag, "Tank failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
+                return true;
+            }
+            tank.Clear();
+            tank = tempList;
+
+            //Antenna
             GridTerminalSystem.GetBlocksOfType(antennaList);
             if (antennaList == null || antennaList.Count < AntennaCount)
             {
@@ -668,6 +761,7 @@ namespace IngameScript
                 IGC.SendBroadcastMessage(BroadcastTag, "Antenna failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
                 return true;
             }
+            //Cockpit
             GridTerminalSystem.GetBlocksOfType(CockpitList, x => x.CustomName.Contains(TagCustom));
             if (CockpitList == null || CockpitList.Count != CockpitCount)
             {
@@ -676,6 +770,8 @@ namespace IngameScript
                 return true;
             }
             Cockpit = CockpitList[0];
+            Cockpit.DampenersOverride = true;
+            //Projector
             GridTerminalSystem.GetBlocksOfType(ProjectorList, x => x.CustomName.Contains(TagCustom));
             if (ProjectorList == null || ProjectorList.Count != ProjectorCount)
             {
@@ -728,15 +824,23 @@ namespace IngameScript
             {
                 ThrustersInGroup = NestedThrusters.Count();
             }
+            //Calculate max thrust
+            maxBreakingThrust = 0;
+            GridTerminalSystem.GetBlocksOfType(forwardThrusters, x => x.WorldMatrix.Forward == Cockpit.WorldMatrix.Backward && x.IsWorking);
+            foreach (var t in forwardThrusters)
+            {
+                maxBreakingThrust += t.MaxEffectiveThrust;
+                //Echo($"maxt thrust: {maxBreakingThrust}");
+            }
             //INITIALIZATION NOT REQUIRED
-            initializedRequired = false;
             Echo("Drone setup is correct, no need to initialize");
             IGC.SendBroadcastMessage(BroadcastTag, "Drone setup is correct.\nNo need to initialize");
-            //IGC.SendBroadcastMessage(BroadcastTag, $"initiRequired {initializedRequired}");
+            initializedRequired = false;
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("initiRequired", initializedRequired));
             //Echo($"Thrusters in group : {ThrustersInGroup}");
             //Echo($"NestedThrusters : {NestedThrusters.Count}");
             //Echo($"ThrustersList : {ThrustersList.Count}");
+            timerSM = new SimpleTimerSM(this, SequenceConditionalRotorSpeed());
             return false;
         }
         public IEnumerable<double> SequenceConditionalRotorSpeed()
@@ -744,8 +848,9 @@ namespace IngameScript
             while (!firstRotation && printing)
             {
                 IMyTerminalBlock firstBlock;
-                newRotorSpeed = RotorSpeed / 2;
-                yield return 9 * multTicks * ticksToSeconds;
+                PrintingBlocksListCreation();
+                newRotorSpeed = RotorSpeed;
+                yield return 3 * multTicks * ticksToSeconds;
                 time += Runtime.TimeSinceLastRun.TotalSeconds;
                 if (integrityListT0 != null && integrityListT0.Count > 0)
                 {
@@ -757,9 +862,12 @@ namespace IngameScript
                 newRotorSpeed = RotorControl(activeWeldedBlockName);
                 PrintingOnActiveLCD();
 
-                yield return 9 * multTicks * ticksToSeconds;
+                yield return 6 * multTicks * ticksToSeconds;
                 while (activeWeldedBlockIntegrity < 1)
                 {
+                    
+                    PrintingBlocksListCreation();
+                    PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
                     time += Runtime.TimeSinceLastRun.TotalSeconds;
                     newRotorSpeed = RotorControl(activeWeldedBlockName);
                     activeWeldedBlockIntegrity = firstBlock.CubeGrid.GetCubeBlock(firstBlock.Min).BuildLevelRatio;
@@ -776,7 +884,7 @@ namespace IngameScript
                             ignoringList.Add(activeWeldedBlockName);
                             refreshBlocks = ignoringList.Count;
                             //Echo($"refreshed Blocks = {refreshBlocks}");
-                            yield return 9 * multTicks * ticksToSeconds;
+                            yield return 6 * multTicks * ticksToSeconds;
                         }
                         time += Runtime.TimeSinceLastRun.TotalSeconds;
                         PrintingOnActiveLCD();
@@ -787,12 +895,12 @@ namespace IngameScript
                     if (ignoreTB)
                     {
                         Wait = ImWait;
-                        newRotorSpeed = RotorSpeed;
+                        newRotorSpeed = RotorSpeed / 2;
                         List<IMyTerminalBlock> ignoreAllList = new List<IMyTerminalBlock>();
                         GridTerminalSystem.GetBlocksOfType(ignoreAllList, x => !x.CubeGrid.GetCubeBlock(x.Min).IsFullIntegrity);
                         foreach (IMyTerminalBlock block in ignoreAllList)
                         {
-                            yield return 9 * multTicks * ticksToSeconds;
+                            yield return 7 * multTicks * ticksToSeconds;
                             ignoringList.Add(block);
                         }
                         refreshBlocks = ignoreAllList.Count;
@@ -800,24 +908,26 @@ namespace IngameScript
                         activePrinting = false;
                         ignoreTB = false;
                         time += Runtime.TimeSinceLastRun.TotalSeconds;
-                        yield return 9 * multTicks * ticksToSeconds;
+                        yield return 7 * multTicks * ticksToSeconds;
                         PrintingOnActiveLCD();
                         time = 0;
                         yield break;
                     }
-                    yield return 60 * ticksToSeconds;
+                    yield return 60 * multTicks * ticksToSeconds;
                 }
                 //Echo("block deleted");
                 time += Runtime.TimeSinceLastRun.TotalSeconds;
                 activePrinting = false;
                 builtBlocks++;
-                totTime += (int)Math.Ceiling(time);
+                totTime += (int)time;
                 averageTime = totTime / builtBlocks;
                 if (time > maxTime) { maxTime = (int)Math.Ceiling(time); }
                 if (time < minTime) { minTime = (int)Math.Ceiling(time); }
                 activeWeldedBlockIntegrity = firstBlock.CubeGrid.GetCubeBlock(firstBlock.Min).BuildLevelRatio;
+                PrintingBlocksListCreation();
+                PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
                 PrintingOnActiveLCD();
-                newRotorSpeed = RotorSpeed;
+                newRotorSpeed = RotorSpeed / 2;
                 time = 0;
                 yield break;
             }
@@ -827,7 +937,8 @@ namespace IngameScript
         public float RotorControl(IMyTerminalBlock block)
         {
             var blockPos = Vector3D.Normalize(block.GetPosition() - rotorPosition);
-            var planeNormal = rotorHeadMatrix.Up;
+            
+            //Echo($"blockPos: {blockPos}\nplaneNormal: {planeNormal}");
             var blockProj = Vector3D.ProjectOnPlane(ref blockPos, ref planeNormal);
             if (welder_right) { rotorFacing = welderSign * rotorHeadMatrix.Right; }
             else if (welder_forward) { rotorFacing = welderSign * rotorHeadMatrix.Forward; }
@@ -836,7 +947,7 @@ namespace IngameScript
             //float mult = (float)angle *1.5f;
             //Echo($"rotorHead matrix: {rotorHeadMatrix}\n");
             //Echo($"mult: {mult}");
-            //Echo($"angle: {angle / Math.PI * 180}");
+            //Echo($"angle: {angle / Math.PI * 180}\nblockProj: {blockProj}\nrotorFacing: {rotorFacing}\nx: {blockProj.Cross(rotorFacing).Dot(planeNormal)}\ny: {rotorFacing.Dot(rotorFacing)}");
             if (Math.Abs(angle) > rotorToll)
             {
                 return RotorSpeed * mult;
@@ -862,31 +973,38 @@ namespace IngameScript
             IGC.SendBroadcastMessage(BroadcastTag, newRotorSpeed);
         }
 
-        public void ActionTime(IMyShipController Cockpit, List<IMyThrust> ThrusterGroup)
+        public void ActionTime(IMyShipController Cockpit)
         {
-            PrintingBlocksListCreation();
+            //PrintingBlocksListCreation();
+            //
             if (imMoving)
             {
+                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"OUT==moving: {imMoving}\nweld: {weldWhileMoving}\ntoggle: {weldersToggleOn}"));
                 Wait = ImWait;
-                //firstRotation = false;
-                if (!weldWhileMoving)
+                if (!weldWhileMoving && weldersToggleOn)
                 {
                     weldersToggleOn = false;
+                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"IN==moving: {imMoving}\nweld: {weldWhileMoving}\ntoggle: {weldersToggleOn}"));
+                    WeldersToggle(weldersToggleOn);
+                }
+                else if(weldWhileMoving && !weldersToggleOn)
+                {
+                    weldersToggleOn = true;
                     WeldersToggle(weldersToggleOn);
                 }
             }
-            if (!imMoving)
+            if (!imMoving && !weldersToggleOn)
             {
                 weldersToggleOn = true;
-                WeldersToggle(weldersToggleOn);
+                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("weldersToggle", weldersToggleOn));
             }
 
             Wait -= Runtime.TimeSinceLastRun.TotalSeconds;
 
             remainingTB = integrityListT0.Count;
             totRemaining = Projector.RemainingBlocks - refreshBlocks;
-            PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
 
+            PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
             if (Wait <= 0)
             {
                 remainingTB = integrityListT0.Count;
@@ -904,30 +1022,31 @@ namespace IngameScript
                     firstRotation = false;
                 }
 
-                if (remainingTB <= 0)
+                if (remainingTB <= 0 && preciseMoving==false)
                 {
+                    PrintingBlocksListCreation();
+                    sectionsBuilt++;
+                    endingBlocks = totBlocks - totRemaining;
+                    averageBlocks = endingBlocks / sectionsBuilt;
                     start = Me.GetPosition();
+                    preciseMoving = true;
+                    imMoving = true;
+                    firstRotation = true;
+                    //Echo($"precMov: {preciseMoving}");
                     mass = Cockpit.CalculateShipMass().PhysicalMass;
+                    thrust = (mass * acceleration) / ThrustersInGroup;
+                    maxDecel = maxBreakingThrust*1.5f / mass; // 1.5 is the dampeners modifier
+                    Runtime.UpdateFrequency = UpdateFrequency.Update1;
                     PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
-                    Movement(Cockpit, ThrusterGroup, totRemaining, remainingTB);
+                    //Movement(Cockpit, ThrusterGroup, totRemaining, remainingTB);
                 }
 
                 //check for stopping status (finished printing)
                 if (totRemaining == 0)
                 {
                     //Echo("1");
-                    Runtime.UpdateFrequency = UpdateFrequency.None;
-                    timerSM.AutoStart = false;
-                    statusLCDStateMachine.AutoStart = false;
-                    timerSM.Stop();
-                    statusLCDStateMachine.Stop();
-                    Wait = 0;
-                    Stop(ThrusterGroup);
-                    checkDistance = false;
-                    firstRotation = false;
-                    activation = false;
+                    Stop();
                     printing = false;
-                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
                     //Echo("2");
                     if (toggleList != null && toggleAfterFinish)
                     {
@@ -945,21 +1064,9 @@ namespace IngameScript
                 }
                 if (safetyDistanceStop >= maxDistanceStop)
                 {
-                    Runtime.UpdateFrequency = UpdateFrequency.None;
-                    timerSM.AutoStart = false;
-                    statusLCDStateMachine.AutoStart = false;
-                    timerSM.Stop();
-                    statusLCDStateMachine.Stop();
-                    Wait = 0;
-                    checkDistance = false;
-                    firstRotation = false;
-                    Stop(ThrusterGroup);
-                    timerSM.Stop();
-                    foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
+                    Stop();
                     IGC.SendBroadcastMessage(BroadcastTag, "\nSafety Distance Reached. Tug stopped.");
-                    activation = false;
-                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
-                    Save();
+                    SaveVariables();
                 }
             }
         }
@@ -987,14 +1094,14 @@ namespace IngameScript
                 && !supportBlocks.Contains(b)
                 );
         }
-        void ImListening(IMyShipController Cockpit, IMyProjector Projector, List<IMyThrust> ThrusterGroup)
+        void ImListening(IMyShipController Cockpit, IMyProjector Projector)
         {
             while (_myBroadcastListener.HasPendingMessage)
             {
                 var myIGCMessage = _myBroadcastListener.AcceptMessage();
                 if (myIGCMessage.Tag == BroadcastTag && myIGCMessage.Data is string)
                 {
-                    switch (myIGCMessage.Data.ToString().ToLower())
+                    switch (myIGCMessage.Data.ToString())
                     {
                         case "start":
                             LoadStoredData();
@@ -1002,22 +1109,19 @@ namespace IngameScript
                             setupCommand = false;
                             aligningBool = true;
                             time = 0;
-                            PrintingBlocksListCreation();
+                            //PrintingBlocksListCreation();
                             totBlocks = TotalBlocks();
                             Wait = ImWait;
-                            Runtime.UpdateFrequency = UpdateFrequency.Update10;
-                            activation = true;
-                            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
-                            mass = Cockpit.CalculateShipMass().PhysicalMass;
                             int remainingTB = integrityListT0.Count;
                             totRemaining = Projector.RemainingBlocks - refreshBlocks;
                             safetyDistanceStop = Math.Round(Vector3D.Distance(rotorPosition, Cockpit.GetPosition()), 2);
                             imMoving = false;
-                            statusLCDStateMachine.Start();
+                            mass = Cockpit.CalculateShipMass().PhysicalMass;
                             PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
                             timerSM.Start();
                             statusLCDStateMachine.AutoStart = true;
                             timerSM.AutoStart = true;
+                            statusLCDStateMachine.Start();
                             printing = true; //start the print-->for the main
                             break;
 
@@ -1026,32 +1130,9 @@ namespace IngameScript
                             break;
 
                         case "stop":
-                            Wait = ImWait;
-                            firstRotation = false;
-                            checkDistance = false;
-                            Stop(ThrusterGroup);
-                            timerSM.AutoStart = false;
-                            statusLCDStateMachine.AutoStart = false;
-                            timerSM.Stop();
-                            statusLCDStateMachine.Stop();
-                            activation = false;
-                            IGC.SendBroadcastMessage(BroadcastTag, newRotorSpeed = 0);
-                            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
-                            IGC.SendBroadcastMessage(BroadcastTag, "Stopping command processed.");
-                            foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
-                            Runtime.UpdateFrequency = UpdateFrequency.None;
+                            Stop();
                             printing = false; //stop the print-->for the main
-                            Save();
-                            break;
-
-                        case "skip":
-                            Runtime.UpdateFrequency = UpdateFrequency.Update10;
-                            skipStartingDist = Me.GetPosition();
-                            skip = true;
-                            remainingTB = integrityListT0.Count;
-                            totRemaining = Projector.RemainingBlocks - refreshBlocks;
-                            Movement(Cockpit, ThrusterGroup, totRemaining, remainingTB);
-                            IGC.SendBroadcastMessage(BroadcastTag, "Backward movement processed");
+                            IGC.SendBroadcastMessage(BroadcastTag, "Stopping command processed.");
                             break;
 
                         case "ignore1":
@@ -1065,17 +1146,11 @@ namespace IngameScript
                         case "init_d":
                             CustomData();
                             SetupBlocks();
-                            if (setupCompleted)
-                            {
-                                printing = false;
-                                //Echo($"DRONE SETUP COMPLETED!\nVersion: {droneVersion}\nNumbers of thrusters in group: {ThrustersInGroup}\nCockpit Found \nProjector Found \nFuel Tank: {tank.Count}\nTag used: {TagCustom}");
-                                IGC.SendBroadcastMessage(BroadcastTag, $"    |DRONE SETUP COMPLETED!\n|Version: {droneVersion}\n|Numbers of active thrusters: {ThrustersInGroup} " +
-                                    $"\n|Cockpit Found \n|Projector Found\n|Fuel Tank: {tank.Count}\n|Tag used: [{TagCustom}]\n");
-                            }
-                            Starter();
+                            
                             break;
                     }
                 }
+                
                 //immutable list from toggle and start
                 if (myIGCMessage.Data is ImmutableList<string>)
                 {
@@ -1100,8 +1175,8 @@ namespace IngameScript
 
                         Runtime.UpdateFrequency = UpdateFrequency.None;
                         Wait = 0;
-                        checkDistance = false;
-                        Stop(ThrusterGroup);
+                        //checkDistance = false;
+                        Stop();
                         activation = false;
                         ToggleOn(toggleList);
                         IGC.SendBroadcastMessage(BroadcastTag, "Toggle On blocks, except for Epsteins and Tools");
@@ -1131,13 +1206,43 @@ namespace IngameScript
                 {
                     var tuple = (MyTuple<string, bool>)myIGCMessage.Data;
                     string command = tuple.Item1;
-                    bool toggleYes = tuple.Item2;
                     if (command == "toggleAfterFinish")
                     {
+                        bool toggleYes = tuple.Item2;
                         toggleAfterFinish = toggleYes;
                     }
                 }
+                //skip command
+                if (myIGCMessage.Data is MyTuple<string, bool>)
+                {
+                    var tuple = (MyTuple<string, bool>)myIGCMessage.Data;
+                    string command = tuple.Item1;
+                    if (command == "skip")
+                    {
+                        printAfterSkip = tuple.Item2;
+                        Runtime.UpdateFrequency = UpdateFrequency.Update1;
+                        skipStartingDist = Me.GetPosition();
+                        skip = true;
+                        remainingTB = integrityListT0.Count;
+                        totRemaining = Projector.RemainingBlocks - refreshBlocks;
+                        preciseMoving = true;
+                        mass = Cockpit.CalculateShipMass().PhysicalMass;
+                        thrust = (mass * acceleration) / ThrustersInGroup;
+                        maxDecel = maxBreakingThrust * 1.5f / mass; // 1.5 is the dampeners modifier
+                        IGC.SendBroadcastMessage(BroadcastTag, $"Backward movement processed\nPrint after movement: {printAfterSkip}");
+                    }
+                }
 
+                //weld while moving command: motion_print
+                if (myIGCMessage.Data is MyTuple<string, bool>)
+                {
+                    var tuple = (MyTuple<string, bool>)myIGCMessage.Data;
+                    string command = tuple.Item1;
+                    if (command == "motion_print")
+                    {
+                        weldWhileMoving = tuple.Item2;
+                    }
+                }
                 //command==drone_movement: change move per section
                 if (myIGCMessage.Data is MyTuple<string, double>)
                 {
@@ -1181,20 +1286,24 @@ namespace IngameScript
                     }
                 }
                 //continue stream of rotorhead infos
-                if (myIGCMessage.Data is MyTuple<string, bool, bool, MatrixD>)
+                if (myIGCMessage.Data is MyTuple<string, bool, bool, MatrixD, float>)
                 {
-                    var tuple = (MyTuple<string, bool, bool, MatrixD>)myIGCMessage.Data;
+                    var tuple = (MyTuple<string, bool, bool, MatrixD, float>)myIGCMessage.Data;
                     string command = tuple.Item1;
                     if (command == "rotorHead")
                     {
                         welder_right = tuple.Item2;
                         welder_forward = tuple.Item3;
                         rotorHeadMatrix = tuple.Item4;
+                        planeNormal = rotorHeadMatrix.Up;
+                        rotorSpeed = tuple.Item5;
+                        //Echo($"rotorMatrix: {rotorHeadMatrix}");
                     }
                 }
                 //Untag sent tag from drone
                 if (myIGCMessage.Data is MyTuple<string, string>)
                 {
+                    printing = false;
                     var tuple = (MyTuple<string, string>)myIGCMessage.Data;
                     string command = tuple.Item1;
                     string tag = tuple.Item2;
@@ -1208,22 +1317,19 @@ namespace IngameScript
                 //setup commands
                 if (myIGCMessage.Data is MyTuple<double, float, double, float, MyTuple<double, bool, double>, MyTuple<MatrixD, int>>)
                 {
-
-
-                    profiler = new Profiler(this.Runtime);
-                    timerSM = new SimpleTimerSM(this, SequenceConditionalRotorSpeed());
-                    statusLCDStateMachine = new SimpleTimerSM(this, sequence: StatusLCD());
-                    printing = false;
                     Starter();
+                    printing = false;
+                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("droneVersion", droneVersion));
                     //Echo($"init: {initializedRequired}");
+                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("initRequired", initializedRequired));
                     setupAlreadySent = true;
                     //Echo($"setup: {setupAlreadySent}");
                     IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("SetupSent", setupAlreadySent));
+                    Runtime.UpdateFrequency = UpdateFrequency.None;
                     activation = false;
-                    IGC.SendBroadcastMessage(BroadcastTag, activation);
+                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
                     setupCommand = true;
-                    Stop(ThrusterGroup);
-                    checkDistance = false;
+                    Stop();
                     firstRotation = false;
                     var tuple = (MyTuple<double, float, double, float, MyTuple<double, bool, double>, MyTuple<MatrixD, int>>)myIGCMessage.Data;
                     ImWait = tuple.Item1;
@@ -1252,18 +1358,18 @@ namespace IngameScript
                 //alignment drone
                 if (myIGCMessage.Data is MatrixD)
                 {
-                    Stop(ThrusterGroup);
+                    Stop();
                     setupCommand = true;
-                    Runtime.UpdateFrequency = UpdateFrequency.Update10;
-                    checkDistance = false;
+                    Runtime.UpdateFrequency = UpdateFrequency.Update1;
+                    //checkDistance = false;
                     firstRotation = false;
                     printing = true;
                     Wait = ImWait;
                     aligningBool = true;
-                    activation = false;
                     rotorOrientation = (MatrixD)myIGCMessage.Data;
                     IGC.SendBroadcastMessage(BroadcastTag, "Drone is aligning.");
-                    IGC.SendBroadcastMessage(BroadcastTag, activation);
+                    activation = false;
+                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
                 }
             }
         }
@@ -1275,8 +1381,11 @@ namespace IngameScript
             }
             else
             {
-                weldersToggleOn = false;
-                WeldersToggle(weldersToggleOn);
+                if (weldersToggleOn)
+                {
+                    weldersToggleOn = false;
+                    WeldersToggle(weldersToggleOn); 
+                }
                 double pitch, yaw, roll;
                 //the desiredForward and UP are the rotor's: the cockpit of the tug will be aligned with the downward direction of the rotor!!
                 var desiredForward = -rotorOrientation.Up;
@@ -1426,6 +1535,7 @@ namespace IngameScript
         public void PrintingResults(int totRemaining, int remainingTB, double safetyDisanceStop)
         {
             StringBuilder printingOutput = new StringBuilder();
+            printingOutput.Clear();
             double tankLevel = 0;
 
             if (Projector.IsProjecting && totBlocks > 0)
@@ -1491,7 +1601,18 @@ namespace IngameScript
             $"{"0% " + string.Concat(Enumerable.Repeat("=", tankMultiplier * 3)),-33}" + $"{" 100%",4}\n" +
             $"{lcd_proj_level + ": " + totBlockPercentage + "%      "}\n" +
             $"{"0% " + string.Concat(Enumerable.Repeat("=", totBlockMultiplier * 3)),-33}" + $"{" 100%",4}\n" +
-            $"{lcd_divider}");
+            $"{lcd_divider}\n"
+            );
+            if (tankLevel * 100 < 10 && (lcd_printing_spinner_status < 2 || lcd_printing_spinner_status > 5))
+            {
+                printingOutput.Append($"      CRITICAL TANK LEVEL!!\n");
+            }
+            else printingOutput.Append("");
+            if(averageRT > 0.50 * maxRTCustom)
+            {
+                printingOutput.Append($"{lcd_divider}\n CRITICAL RT: DRONE SLOWING DOWN");
+            }
+            else printingOutput.Append("");
 
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("LogWriting", printingOutput.ToString()));
             printingOutput.Clear();
@@ -1505,6 +1626,7 @@ namespace IngameScript
             //extimated time with some semi viable constants, like 60=number of average sections (150 meter long ship)
             //totBlocks/20 ratio between functional and armor blocks
             //divided by 60 to convert in minutes
+            totTime = (int)Math.Ceiling((double)totTime);
             totTimeETA = (int)Math.Ceiling((60 * ImWait + averageTime * totBlocks / 20) / 60);
             ETA_Extimate = (int)Math.Abs(totTimeETA - Math.Ceiling(totTime / 60f));
             ETA_Perc_based = (int)Math.Ceiling(Math.Abs(totTime - (100 / totBlockPercentage) * totTime) / 60);
@@ -1525,12 +1647,15 @@ namespace IngameScript
                  $"{lcd_divider}\n" +
                  $"{"ETA (EXT+Perc)/2",-19}{"= " + ETA + " minutes",13}\n" +
                  $"{"ETA_EXT",-19}{"= " + ETA_Extimate + " minutes",13}\n" +
-                 $"{"ETA_Perc",-19}{"=  " + ETA_Perc_based + " minutes",13}\n"
+                 $"{"ETA_Perc",-19}{"=  " + ETA_Perc_based + " minutes",13}\n" +
+                 $"{lcd_divider}\n" +
+                 $"{"Drone Avg RT",-19}{"=  " + averageRT + " ms",13}\n"
                  //$"{"totTime",-19}{"= " + totTime + " secs", 13}\n" +
                  //$"{"blocPerc", -19}{" =" + totBlockPercentage, 13}\n" +
                  //$"{"1/blockPerc = " + 100 / totBlockPercentage}\n" +
                  //$"{"1/blockPerc*totTime = " + 100 / totBlockPercentage *totTime}\n" +
                  //$"{"totTime - su = " + (totTime-( 100 / totBlockPercentage * totTime))}\n"
+
                  );
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("ActiveWelding", activeOuput.ToString()));
             activeOuput.Clear();
@@ -1538,12 +1663,12 @@ namespace IngameScript
 
         public IEnumerable<double> StatusLCD()
         {
-            while (integrityListT0 != null && integrityListT0.Count > 0 && printing)
+            while (integrityListT0 != null && integrityListT0.Count > 0 && printing && !firstRotation)
             {
                 List<IMyTerminalBlock> tempList = integrityListT0.ToList();
                 for (int i = 0; i < tempList.Count; i++)
                 {
-                    yield return 18 * multTicks * ticksToSeconds;
+                    yield return 25 * multTicks * ticksToSeconds;
                     var block = tempList[i];
                     string name = block.CustomName;
                     if (name.Length > 25)
@@ -1556,6 +1681,7 @@ namespace IngameScript
                 IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StatusWriting", printingStatus.ToString()));
                 printingStatus.Clear();
             }
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StatusWriting", ""));
             yield break;
         }
         public void Projecting(IMyProjector Projector)
@@ -1563,42 +1689,56 @@ namespace IngameScript
             Projector.Enabled = !Projector.Enabled;
             IGC.SendBroadcastMessage(BroadcastTag, "Projector On/Off \n");
         }
-
-        public void Movement(IMyShipController Cockpit, List<IMyThrust> ThrusterGroup, int totRemaining, int remainingTB)
+        
+        public void PreciseMovement(IMyShipController Cockpit, List<IMyThrust> ThrusterGroup, int totRemaining, 
+            int remainingTB, Vector3D startingPosition)
         {
-            imMoving = true;
-            checkDistance = true;
-            firstRotation = false;
+            //Echo($"function, precMov: {preciseMoving}");
             Wait = ImWait;
-            aligningBool = true;
-            mass = Cockpit.CalculateShipMass().PhysicalMass;
-            thrust = (mass * acceleration) / (ThrustersInGroup);
             safetyDistanceStop = Math.Round(Vector3D.Distance(rotorPosition, Me.GetPosition()), 2);
-            PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
-            //stats counting at the end of the section
-            sectionsBuilt++;
-            endingBlocks = totBlocks - totRemaining;
-            averageBlocks = endingBlocks / sectionsBuilt;
-            foreach (var thrusters in ThrusterGroup)
+            if(!skip) PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
+            foreach (var t in ThrusterGroup)
             {
-                thrusters.ThrustOverride = thrust;
+                t.ThrustOverride = thrust;
+                //Echo($"thrust: {t.ThrustOverride}");
+            }
+            //instant speed
+            Vector3D WorldVelocity = Cockpit.GetShipVelocities().LinearVelocity;
+            velocity = WorldVelocity.Dot(Cockpit.WorldMatrix.Backward); //towards backward direction
+            //seconds to stop
+            var t_stop = velocity / maxDecel + 1d/60d;//1d/60d is to take ticks time into account
+            //stopping distance
+            var s_stop = velocity * t_stop - maxDecel * t_stop * t_stop / 2;
+            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
+            if ((Vector3D.Distance(startingPosition, Me.GetPosition())+s_stop) >= DroneMovDistance-0.3d)
+            {
+                foreach (var bt in ThrusterGroup)
+                {
+                    bt.ThrustOverridePercentage = 0f;
+                    //Echo($"thrust: {bt.ThrustOverride}");
+                }
+                //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
+            }
+            if(Vector3D.Distance(startingPosition, Me.GetPosition())>=DroneMovDistance-0.2d)
+            {
+                //velocity = Cockpit.GetShipSpeed();
+                //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
+                if (Math.Abs(velocity)<0.1f)
+                {
+                    //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
+                    preciseMoving = false;
+                    imMoving = false;
+                    Wait = ImWait;
+                    aligningBool = true;
+                }
             }
         }
 
-        public void DistanceCheck(List<IMyThrust> ThrusterGroup)
+        public void Stop()
         {
-            //check if distance has been covered
-            checkDistance = false;
-            imMoving = false;
-            Stop(ThrusterGroup);
-            Wait = ImWait;
-            firstRotation = true;
-            aligningBool = false;
-        }
-
-        public void Stop(List<IMyThrust> ThrusterGroup)
-        {
-            foreach (var thrusters in ThrusterGroup)
+            List<IMyThrust> allThrusters = new List<IMyThrust>();
+            GridTerminalSystem.GetBlocksOfType(allThrusters);
+            foreach (var thrusters in allThrusters)
             {
                 thrusters.ThrustOverride = 0f;
             }
@@ -1666,7 +1806,7 @@ namespace IngameScript
             foreach (var gyro in imGyroList) { gyro.Enabled = true; }
             var rotationVec = new Vector3D(pitchSpeed, yawSpeed, rollSpeed);
             var relativeRotationVec = Vector3D.TransformNormal(rotationVec, worldMatrix);
-
+            Wait = ImWait;
             timeStep += Runtime.TimeSinceLastRun.TotalSeconds;
 
             foreach (var thisGyro in gyroList)
@@ -1683,7 +1823,6 @@ namespace IngameScript
                     {
                         Runtime.UpdateFrequency = UpdateFrequency.None;
                         Wait = ImWait;
-                        checkDistance = false;
                         firstRotation = false;
                         weldersToggleOn = false;
                         WeldersToggle(weldersToggleOn);
@@ -1695,12 +1834,18 @@ namespace IngameScript
                     {
                         weldersToggleOn = true;
                         WeldersToggle(weldersToggleOn);
-                        IGC.SendBroadcastMessage(BroadcastTag, "Drone is aligned.");
+                        //IGC.SendBroadcastMessage(BroadcastTag, "Drone is aligned.");
+                        PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
                         foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
                         timeStep = 0;
                         Wait = ImWait;
                         aligningBool = false;
                         firstRotation = true;
+                        //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", "asdlo"));
+                        activation = true;
+                        imMoving = false;
+                        IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
+                        Runtime.UpdateFrequency = UpdateFrequency.Update1;
                     }
                 }
             }
@@ -1709,23 +1854,20 @@ namespace IngameScript
                 IGC.SendBroadcastMessage(BroadcastTag, "Drone cannot align. Security stop imminent");
                 Runtime.UpdateFrequency = UpdateFrequency.None;
                 Wait = 0;
-                checkDistance = false;
-                Stop(ThrusterGroup);
+                //checkDistance = false;
+                Stop();
                 activation = false;
                 IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
                 foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
                 timeStep = 0;
-                IGC.DisableBroadcastListener(_myBroadcastListener);
-                _myBroadcastListener = IGC.RegisterBroadcastListener(BroadcastTag);
-                _myBroadcastListener.SetMessageCallback(BroadcastTag);
             }
             if (Math.Abs(pitchSpeed) > maxGyroRotation || Math.Abs(yawSpeed) > maxGyroRotation)
             {
                 IGC.SendBroadcastMessage(BroadcastTag, "Align the drone manually below\n  25 degrees, before auto alignment!");
                 Runtime.UpdateFrequency = UpdateFrequency.None;
                 Wait = 0;
-                checkDistance = false;
-                Stop(ThrusterGroup);
+                //checkDistance = false;
+                Stop();
                 activation = false;
                 IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
                 foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }

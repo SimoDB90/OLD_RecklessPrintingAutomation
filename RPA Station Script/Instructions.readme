@@ -1,26 +1,36 @@
-R e a d m e
+﻿R e a d m e
 -----------
 
 "Robotic Printing Automation" by Reckless
-Current Version: V 4.0.3
+Current Version: V 4.1.1
 Script == STATION
 Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 
+-------------Changelog 4.1.1 (5/11/2023)----------------------------------
+-small improved to performance;
+-------------Changelog 4.1.0 (4/11/2023)----------------------------------
+-skip command now is "skip -print", to start printing after 
+	movement, or "skip" to not start printing after movement;
+-Only hydro tanks are now considered for drone's tanks;
+-Better and more consistent storage of printing variables;
+-Precise drone movement added! Now DroneMovementDistance is the wanted one;
+-Fix a bug with untag commands;
+-Added an allert for low tank level on log LCD;
+-Added allert for high runtime on log LCD;
+-Fixed some visual minor bugs;
+-Fixed a bug that prevented to send setup;
+-Fixed(?) a bug that stops, sometimes, the rotor;
+-Added a QoL command: motion_print, to toggle printwhilemoving variable;
+-Improved runtime of script;
 -------------Changelog 4.0.3 (23/10/2023)----------------------------------
 -Fixed a bug with "weldWhileMoving";
 -------------Changelog 4.0.2 (19/10/2023)----------------------------------
 -Improved Runtime check logic;
--Improved some logics to initial check on version and init;
+-Proved some logics to initial check on version and init;
 -Fixed a crash if [RPA-Fancy] group is not present;
 -------------Changelog 4.0.1 (15/10/2023)----------------------------------
 -Bug fix on init of the drone;
 -Bug fix on setup command;
--------------Changelog 4.0.0 (11/10/2023)----------------------------------
--Fixed some init bugs;
--Deleted "Slow mode";
--Huge rework of some logics of the scripts, to slow them down when runtime exceeds some threshold;
--Added an automatic way to store some variables to calculate ETA, to persist between recompiles;
-
 
 ------------- Needed blocks for station:------------------------------------
 1)1 LCD "[RPA].LOG"
