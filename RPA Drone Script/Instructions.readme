@@ -6,6 +6,8 @@ Current Version: V 4.1.0
 Script == DRONE
 Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 
+-------------Changelog 4.1.1 (5/11/2023)----------------------------------
+-small improved to performance;
 -------------Changelog 4.1.0 (4/11/2023)----------------------------------
 -skip command now is "skip -print", to start printing after 
 	movement, or "skip" to not start printing after movement;

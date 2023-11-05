@@ -29,7 +29,7 @@ namespace IngameScript
     partial class Program : MyGridProgram
     {
 
-        readonly string droneVersion = "V: 4.1.0";
+        readonly string droneVersion = "V: 4.1.1";
         readonly MyIni _ini = new MyIni();
         double Wait;
         double ImWait = 7;
