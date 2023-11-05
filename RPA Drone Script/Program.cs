@@ -82,6 +82,7 @@ namespace IngameScript
         Vector3D rotorFacing;
         bool welder_right;
         bool welder_forward;
+        double rotorSpeed = 0;
         int welderSign;//check orientation between welders and rotor
         const double rotorToll = 0.04;
         double angle;
@@ -364,11 +365,8 @@ namespace IngameScript
             }
             if (printing)
             {
-                
                 if (preciseMoving)
                 {
-                    //timerSM.Stop();
-                    //statusLCDStateMachine.Stop();
                     //Echo($"main precMov: {preciseMoving}");
                     PreciseMovement(Cockpit, ThrustersList, totRemaining, remainingTB, start);
                 }
@@ -377,17 +375,14 @@ namespace IngameScript
                     //Echo("aligning");
                     ImAligning(ThrustersList);
                 }
-                //if (checkDistance && Vector3D.Distance(start, Me.GetPosition()) >= DroneMovDistance)
-                //{
-                //    DistanceCheck(ThrusterGroup: ThrustersList);
-                //}
                 if (Wait >= firstRotationTimeMult * ImWait && firstRotation && !aligningBool)
                 {
-                    //PrintingBlocksListCreation();
                     time = 0;
                     activePrinting = false;
-                    if (Wait<ImWait*0.9d)
+                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"OUT == rot speed: {rotorSpeed}"));
+                    if (rotorSpeed<DynamicSpeed-1d || rotorSpeed>DynamicSpeed+1d)
                     {
+                        IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"IN == rot speed: {rotorSpeed}"));
                         RotorSpeedingUp(); 
                     }
                     ActionTime(Cockpit);
@@ -984,13 +979,15 @@ namespace IngameScript
             //
             if (imMoving)
             {
+                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"OUT==moving: {imMoving}\nweld: {weldWhileMoving}\ntoggle: {weldersToggleOn}"));
                 Wait = ImWait;
-                if (!weldWhileMoving)
+                if (!weldWhileMoving && weldersToggleOn)
                 {
                     weldersToggleOn = false;
+                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"IN==moving: {imMoving}\nweld: {weldWhileMoving}\ntoggle: {weldersToggleOn}"));
                     WeldersToggle(weldersToggleOn);
                 }
-                else
+                else if(weldWhileMoving && !weldersToggleOn)
                 {
                     weldersToggleOn = true;
                     WeldersToggle(weldersToggleOn);
@@ -1112,19 +1109,19 @@ namespace IngameScript
                             setupCommand = false;
                             aligningBool = true;
                             time = 0;
-                            PrintingBlocksListCreation();
+                            //PrintingBlocksListCreation();
                             totBlocks = TotalBlocks();
                             Wait = ImWait;
                             int remainingTB = integrityListT0.Count;
                             totRemaining = Projector.RemainingBlocks - refreshBlocks;
                             safetyDistanceStop = Math.Round(Vector3D.Distance(rotorPosition, Cockpit.GetPosition()), 2);
                             imMoving = false;
-                            statusLCDStateMachine.Start();
                             mass = Cockpit.CalculateShipMass().PhysicalMass;
                             PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
                             timerSM.Start();
                             statusLCDStateMachine.AutoStart = true;
                             timerSM.AutoStart = true;
+                            statusLCDStateMachine.Start();
                             printing = true; //start the print-->for the main
                             break;
 
@@ -1289,9 +1286,9 @@ namespace IngameScript
                     }
                 }
                 //continue stream of rotorhead infos
-                if (myIGCMessage.Data is MyTuple<string, bool, bool, MatrixD>)
+                if (myIGCMessage.Data is MyTuple<string, bool, bool, MatrixD, float>)
                 {
-                    var tuple = (MyTuple<string, bool, bool, MatrixD>)myIGCMessage.Data;
+                    var tuple = (MyTuple<string, bool, bool, MatrixD, float>)myIGCMessage.Data;
                     string command = tuple.Item1;
                     if (command == "rotorHead")
                     {
@@ -1299,6 +1296,7 @@ namespace IngameScript
                         welder_forward = tuple.Item3;
                         rotorHeadMatrix = tuple.Item4;
                         planeNormal = rotorHeadMatrix.Up;
+                        rotorSpeed = tuple.Item5;
                         //Echo($"rotorMatrix: {rotorHeadMatrix}");
                     }
                 }
@@ -1383,8 +1381,11 @@ namespace IngameScript
             }
             else
             {
-                weldersToggleOn = false;
-                WeldersToggle(weldersToggleOn);
+                if (weldersToggleOn)
+                {
+                    weldersToggleOn = false;
+                    WeldersToggle(weldersToggleOn); 
+                }
                 double pitch, yaw, roll;
                 //the desiredForward and UP are the rotor's: the cockpit of the tug will be aligned with the downward direction of the rotor!!
                 var desiredForward = -rotorOrientation.Up;
@@ -1709,7 +1710,7 @@ namespace IngameScript
             //stopping distance
             var s_stop = velocity * t_stop - maxDecel * t_stop * t_stop / 2;
             //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
-            if ((Vector3D.Distance(startingPosition, Me.GetPosition())+s_stop) >= DroneMovDistance-0.5d)
+            if ((Vector3D.Distance(startingPosition, Me.GetPosition())+s_stop) >= DroneMovDistance-0.3d)
             {
                 foreach (var bt in ThrusterGroup)
                 {

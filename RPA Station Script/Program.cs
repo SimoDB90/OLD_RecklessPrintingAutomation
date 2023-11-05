@@ -1067,10 +1067,9 @@ namespace IngameScript
                 averageRT = Math.Round(profiler.RunningAverageMs, 2);
                 if (averageRT >= maxRTCustom * 0.3)
                 {
-                    
                     return;
                 }
-                debug.WriteText($"Average Station RT: {averageRT}");
+                //debug.WriteText($"Average Station RT: {averageRT}");
                 ImListening();
                 //debug.WriteText($"AverageRT(ms): {averageRT}");
             }
@@ -1248,7 +1247,15 @@ namespace IngameScript
                         }
                         else RTString = "";
                         LCDLog.WriteText($"{HeaderCreation()} \n{status}" + $"{RTString}");
-                        
+                        //CONTINUOS STREAM OF INFOS
+                        //debug.WriteText("log");
+                        if (Rotor.TargetVelocityRPM != DynamicSpeedCustom)
+                        {
+                            //debug.WriteText("here");
+                            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD, float>(
+                                            "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix, Rotor.TargetVelocityRPM));
+                            //debug.WriteText($"{rotorHead.WorldMatrix}");
+                        }
 
                     }
                     if (log == "StatusWriting")
@@ -1267,15 +1274,7 @@ namespace IngameScript
                             LCDStatus.WriteText($"{StatusLCDHeaderCreation()} \n{status}\n{lcd_divider}\n         WELDERS STATUS\n{lcd_divider}\n{stuckStatus}");
 
                             Echo(compact_commands);
-                            //CONTINUOS STREAM OF INFOS
-                            //debug.WriteText("log");
-                            if (Rotor.TargetVelocityRPM != DynamicSpeedCustom)
-                            {
-                                //debug.WriteText("here");
-                                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool, bool, MatrixD>(
-                                                "rotorHead", welder_right, welder_forward, rotorHead.WorldMatrix));
-                                //debug.WriteText($"{rotorHead.WorldMatrix}");
-                            }
+                            
                         }
                         catch
                         {
