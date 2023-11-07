@@ -12,6 +12,8 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using System.Diagnostics.Eventing.Reader;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using VRage;
@@ -29,7 +31,7 @@ namespace IngameScript
     partial class Program : MyGridProgram
     {
 
-        readonly string droneVersion = "V: 4.1.1";
+        readonly string droneVersion = "V: 4.1.2";
         readonly MyIni _ini = new MyIni();
         double Wait;
         double ImWait = 7;
@@ -100,6 +102,8 @@ namespace IngameScript
         bool printAfterSkip = false;
 
         //lcd printing strings
+        string[] variablesStatus = new string[] { " Running", " Set" };
+        string[] variables = new string[] { "Loaded BP data:", "Set starting variables:", "Aligning Drone:", "Reckless wishes you a good printing", "3...", "2...", "1..." };
         readonly string[] lcd_printing_spinners = new string[] { "P", "PR", "PRI", "PRIN", "PRINT", "PRINTI", "PRINTIN", "PRINTING", "PRINTING.", "PRINTING..." };
         double lcd_printing_spinner_status;
         readonly string[] lcd_moving_spinners = new string[] { "MO", "MOVI", "MOVING.", "MOVING..." };
@@ -125,6 +129,7 @@ namespace IngameScript
         bool weldersToggleOn; // have to toggle on welders?
         bool activation; // have to activate fancy rpa??
         bool setupCommand; //are gyros aligning for the setup? (if false, is after every movement)
+        bool startCommand; //for alingment purpose at the start
         bool activePrinting; //are TB integrity increasing?
         bool printing = false; //when start is sent
         double timeStep = 0;
@@ -167,9 +172,12 @@ namespace IngameScript
         //init Timer State machine
         SimpleTimerSM timerSM;
         SimpleTimerSM statusLCDStateMachine;
+        SimpleTimerSM starterPrint;
+        readonly StringBuilder starterString = new StringBuilder();
         const double ticksToSeconds = 1d / 60d; //multiplying it by X seconds, returns the number of ticks
         readonly int[] multTickList = new int[] { 1, 2, 3 };
         int multTicks = 1;
+
         public Program()
         {
             _myBroadcastListener = IGC.RegisterBroadcastListener(BroadcastTag);
@@ -177,7 +185,135 @@ namespace IngameScript
             profiler = new Profiler(this.Runtime, 240);
             timerSM = new SimpleTimerSM(this, SequenceConditionalRotorSpeed());
             statusLCDStateMachine = new SimpleTimerSM(this, sequence: StatusLCD());
+            starterPrint = new SimpleTimerSM(this, sequence: StartPrinting());
             Starter();
+        }
+        public void Main(string argument, UpdateType updateSource)
+        {
+            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"tunrime: {Runtime.TimeSinceLastRun}"));
+            profiler.Run();
+            timerSM.Run();
+            statusLCDStateMachine.Run();
+            averageRT = Math.Round(profiler.RunningAverageMs, 2);
+            maxRT = Math.Round(profiler.MaxRuntimeMs, 2);
+            //Echo($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
+            //    $"Ticks Mult: {multTicks}");
+            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n"));
+            if (averageRT <= 0.2 * maxRTCustom)
+            {
+                multTicks = multTickList[0];
+            }
+            if (averageRT > 0.2 * maxRTCustom && averageRT <= 0.4 * maxRTCustom)
+            {
+                multTicks = multTickList[1];
+            }
+            if (averageRT > 0.4 * maxRTCustom && averageRT <= 0.55 * maxRTCustom)
+            {
+                multTicks = multTickList[2];
+            }
+            if (averageRT > 0.55 * maxRTCustom)
+            {
+                multTicks = multTickList[2];
+                return;
+            }
+            if ((updateSource & (UpdateType.Trigger | UpdateType.Terminal)) > 0)
+            {
+                if (argument.ToLower() == "init_d" && !printing)
+                {
+                    CustomData();
+                    SetupBlocks();
+                    if (setupCompleted)
+                    {
+                        Echo($"DRONE SETUP COMPLETED!\nVersion: {droneVersion}\nNumbers of thrusters in group: {ThrustersInGroup}\nCockpit Found \nProjector Found \nFuel Tank: {tank.Count}\nTag used: {TagCustom}");
+                        IGC.SendBroadcastMessage(BroadcastTag, $"    |DRONE SETUP COMPLETED!\n|Version: {droneVersion}\n|Numbers of active thrusters: {ThrustersInGroup} " +
+                            $"\n|Cockpit Found \n|Projector Found\n|Fuel Tank: {tank.Count}\n|Tag used: [{TagCustom}]");
+                    }
+                }
+                if (argument.ToLower() == "stop")
+                {
+                    Echo($"Stopping");
+                    printing = false; //stop the print-->for the main
+                    Stop();
+                    SaveVariables();
+                }
+            }
+            if (startCommand)
+            {
+                starterPrint.Run();
+            }
+            if (skip && !startCommand)
+            {
+                //Echo($"precMov: {preciseMoving}\nprint {printAfterSkip}\nskip: {skip}");
+                PreciseMovement(Cockpit, ThrustersList, totRemaining, remainingTB, skipStartingDist);
+                if (preciseMoving == false && printAfterSkip)
+                {
+                    //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"2=\nprinting: {printing}\nprecMov: {preciseMoving}\nskip: {skip}"));
+                    //Echo($"precMov: {preciseMoving}\nprint {printAfterSkip}");
+                    printing = true;
+                    time = 0;
+                    //PrintingBlocksListCreation();
+                    statusLCDStateMachine.Start();
+                    timerSM.Start();
+                    statusLCDStateMachine.AutoStart = true;
+                    timerSM.AutoStart = true;
+                    setupCommand = false;
+                    skip = false;
+                }
+            }
+            if (printing && !startCommand && !skip)
+            {
+                if (preciseMoving)
+                {
+                    //Echo($"main precMov: {preciseMoving}");
+                    PreciseMovement(Cockpit, ThrustersList, totRemaining, remainingTB, start);
+                }
+                if (aligningBool)
+                {
+                    //Echo("aligning");
+                    ImAligning();
+                }
+                if (Wait >= firstRotationTimeMult * ImWait && firstRotation && !aligningBool && !preciseMoving)
+                {
+                    time = 0;
+                    activePrinting = false;
+                    //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"OUT == rot speed: {rotorSpeed}"));
+                    if (rotorSpeed < DynamicSpeed - 1d || rotorSpeed > DynamicSpeed + 1d)
+                    {
+                        //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"IN == rot speed: {rotorSpeed}"));
+                        RotorSpeedingUp();
+                    }
+                    ActionTime(Cockpit);
+                }
+                if ((Wait < firstRotationTimeMult * ImWait || !firstRotation) && !aligningBool && !setupCommand && !preciseMoving)
+                {
+                    //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"entering"));
+                    if (firstRotation)
+                    {
+                        firstRotation = false; 
+                    }
+                    ActionTime(Cockpit);
+                    IGC.SendBroadcastMessage(BroadcastTag, newRotorSpeed);
+                }
+            }
+            if (!printing && !skip && !startCommand)
+            {
+                timerSM.AutoStart = false;
+                statusLCDStateMachine.AutoStart = false;
+                timerSM.Stop();
+                statusLCDStateMachine.Stop();
+                activation = false;
+                starterPrint.AutoStart = false;
+                starterPrint.Stop();
+                IGC.SendBroadcastMessage(BroadcastTag, newRotorSpeed = 0);
+                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
+                foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
+                Runtime.UpdateFrequency = UpdateFrequency.None;
+                SaveVariables();
+            }
+            if ((updateSource & UpdateType.IGC) > 0)
+            {
+                ImListening(Cockpit, Projector);
+            }
         }
         public void Starter()
         {
@@ -278,139 +414,6 @@ namespace IngameScript
                 ignoredBlocks = 0;
                 Echo($"Can't parse the Storage;");
                 //IGC.SendBroadcastMessage(BroadcastTag, "No Stored Data to load for this BP;");
-            }
-        }
-
-        public void Main(string argument, UpdateType updateSource)
-        {
-            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"tunrime: {Runtime.TimeSinceLastRun}"));
-            profiler.Run();
-            timerSM.Run();
-            statusLCDStateMachine.Run();
-            averageRT = Math.Round(profiler.RunningAverageMs, 2);
-            maxRT = Math.Round(profiler.MaxRuntimeMs, 2);
-            Echo($"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n" +
-                $"Ticks Mult: {multTicks}");
-            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"AverageRT(ms): {averageRT}\nMaxRT(ms): {maxRT}\n"));
-            if (averageRT <= 0.2 * maxRTCustom)
-            {
-                multTicks = multTickList[0];
-            }
-            if (averageRT > 0.2 * maxRTCustom && averageRT <= 0.4 * maxRTCustom)
-            {
-                multTicks = multTickList[1];
-            }
-            if (averageRT > 0.4 * maxRTCustom && averageRT <= 0.55 * maxRTCustom)
-            {
-                multTicks = multTickList[2];
-            }
-            if (averageRT > 0.55 * maxRTCustom)
-            {
-                multTicks = multTickList[2];
-                return;
-            }
-            if ((updateSource & (UpdateType.Trigger | UpdateType.Terminal)) > 0)
-            {
-                if (argument.ToLower() == "init_d" && !printing)
-                {
-                    CustomData();
-                    SetupBlocks();
-                    if (setupCompleted)
-                    {
-                        Echo($"DRONE SETUP COMPLETED!\nVersion: {droneVersion}\nNumbers of thrusters in group: {ThrustersInGroup}\nCockpit Found \nProjector Found \nFuel Tank: {tank.Count}\nTag used: {TagCustom}");
-                        IGC.SendBroadcastMessage(BroadcastTag, $"    |DRONE SETUP COMPLETED!\n|Version: {droneVersion}\n|Numbers of active thrusters: {ThrustersInGroup} " +
-                            $"\n|Cockpit Found \n|Projector Found\n|Fuel Tank: {tank.Count}\n|Tag used: [{TagCustom}]");
-                    }
-                }
-                if (argument.ToLower() == "stop")
-                {
-                    Echo($"Stopping");
-                    printing = false; //stop the print-->for the main
-                    Stop();
-                    SaveVariables();
-                } 
-            }
-
-            if (skip)
-            {
-                printing = false;
-                PreciseMovement(Cockpit, ThrustersList, totRemaining, remainingTB, skipStartingDist);
-                //Echo($"distance: {Vector3D.Distance(skipStartingDist, Me.GetPosition())}");
-                //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"1=\nprinting: {printing}\nprecMov: {preciseMoving}\nskip: {skip}"));
-                if (preciseMoving==false)
-                {
-                    printing = printAfterSkip;
-                    skip = false;
-                    //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"2=\nprinting: {printing}\nprecMov: {preciseMoving}\nskip: {skip}"));
-                    if (printing)
-                    {
-                        time = 0;
-                        PrintingBlocksListCreation();
-                        totBlocks = TotalBlocks();
-                        Runtime.UpdateFrequency = UpdateFrequency.Update1;
-                        activation = true;
-                        IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
-                        //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"3=\nprinting: {printing}\nprecMov: {preciseMoving}\nskip: {skip}"));
-                        int remainingTB = integrityListT0.Count;
-                        totRemaining = Projector.RemainingBlocks - refreshBlocks;
-                        safetyDistanceStop = Math.Round(Vector3D.Distance(rotorPosition, Cockpit.GetPosition()), 2);
-                        PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
-                        statusLCDStateMachine.Start();
-                        timerSM.Start();
-                        statusLCDStateMachine.AutoStart = true;
-                        timerSM.AutoStart = true;
-                        setupCommand = false;
-                    }
-                }
-            }
-            if (printing)
-            {
-                if (preciseMoving)
-                {
-                    //Echo($"main precMov: {preciseMoving}");
-                    PreciseMovement(Cockpit, ThrustersList, totRemaining, remainingTB, start);
-                }
-                if (aligningBool)
-                {
-                    //Echo("aligning");
-                    ImAligning(ThrustersList);
-                }
-                if (Wait >= firstRotationTimeMult * ImWait && firstRotation && !aligningBool)
-                {
-                    time = 0;
-                    activePrinting = false;
-                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"OUT == rot speed: {rotorSpeed}"));
-                    if (rotorSpeed<DynamicSpeed-1d || rotorSpeed>DynamicSpeed+1d)
-                    {
-                        IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"IN == rot speed: {rotorSpeed}"));
-                        RotorSpeedingUp(); 
-                    }
-                    ActionTime(Cockpit);
-                }
-                if ((Wait < firstRotationTimeMult * ImWait || !firstRotation) && !aligningBool && !setupCommand)
-                {
-                    firstRotation = false;
-                    ActionTime(Cockpit);
-                    IGC.SendBroadcastMessage(BroadcastTag, newRotorSpeed);
-                }
-            }
-            if(!printing && !skip)
-            {
-                timerSM.AutoStart = false;
-                statusLCDStateMachine.AutoStart = false;
-                timerSM.Stop();
-                statusLCDStateMachine.Stop();
-                activation = false;
-                IGC.SendBroadcastMessage(BroadcastTag, newRotorSpeed = 0);
-                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
-                
-                foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
-                Runtime.UpdateFrequency = UpdateFrequency.None;
-                SaveVariables();
-            }
-            if ((updateSource & UpdateType.IGC) > 0)
-            {
-                ImListening(Cockpit, Projector);
             }
         }
         public void UntagDrone(string tag)
@@ -685,6 +688,7 @@ namespace IngameScript
             profiler = new Profiler(this.Runtime, 240);
             timerSM = new SimpleTimerSM(this, SequenceConditionalRotorSpeed());
             statusLCDStateMachine = new SimpleTimerSM(this, sequence: StatusLCD());
+            starterPrint = new SimpleTimerSM(this, sequence: StartPrinting());
             _myBroadcastListener = IGC.RegisterBroadcastListener(BroadcastTag);
             _myBroadcastListener.SetMessageCallback(BroadcastTag);
             //sending the version of the script to the station
@@ -761,6 +765,7 @@ namespace IngameScript
                 IGC.SendBroadcastMessage(BroadcastTag, "Antenna failed to set up correctly;\nInitialization required:\nSet tag in CD, then run \"init_d\"");
                 return true;
             }
+            foreach (var a in antennaList) a.EnableBroadcasting = true;
             //Cockpit
             GridTerminalSystem.GetBlocksOfType(CockpitList, x => x.CustomName.Contains(TagCustom));
             if (CockpitList == null || CockpitList.Count != CockpitCount)
@@ -841,6 +846,8 @@ namespace IngameScript
             //Echo($"NestedThrusters : {NestedThrusters.Count}");
             //Echo($"ThrustersList : {ThrustersList.Count}");
             timerSM = new SimpleTimerSM(this, SequenceConditionalRotorSpeed());
+            statusLCDStateMachine = new SimpleTimerSM(this, sequence: StatusLCD());
+            starterPrint = new SimpleTimerSM(this, sequence: StartPrinting());
             return false;
         }
         public IEnumerable<double> SequenceConditionalRotorSpeed()
@@ -874,7 +881,7 @@ namespace IngameScript
                     PrintingOnActiveLCD();
                     activePrinting = true;
                     Wait = ImWait;
-                    firstRotation = false;
+                    //firstRotation = false;
                     if (ignore1TB)
                     {
                         Wait = ImWait;
@@ -933,7 +940,6 @@ namespace IngameScript
             }
             yield break;
         }
-
         public float RotorControl(IMyTerminalBlock block)
         {
             var blockPos = Vector3D.Normalize(block.GetPosition() - rotorPosition);
@@ -972,27 +978,9 @@ namespace IngameScript
             newRotorSpeed = DynamicSpeed;
             IGC.SendBroadcastMessage(BroadcastTag, newRotorSpeed);
         }
-
         public void ActionTime(IMyShipController Cockpit)
         {
             //PrintingBlocksListCreation();
-            //
-            if (imMoving)
-            {
-                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"OUT==moving: {imMoving}\nweld: {weldWhileMoving}\ntoggle: {weldersToggleOn}"));
-                Wait = ImWait;
-                if (!weldWhileMoving && weldersToggleOn)
-                {
-                    weldersToggleOn = false;
-                    IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"IN==moving: {imMoving}\nweld: {weldWhileMoving}\ntoggle: {weldersToggleOn}"));
-                    WeldersToggle(weldersToggleOn);
-                }
-                else if(weldWhileMoving && !weldersToggleOn)
-                {
-                    weldersToggleOn = true;
-                    WeldersToggle(weldersToggleOn);
-                }
-            }
             if (!imMoving && !weldersToggleOn)
             {
                 weldersToggleOn = true;
@@ -1031,14 +1019,11 @@ namespace IngameScript
                     start = Me.GetPosition();
                     preciseMoving = true;
                     imMoving = true;
-                    firstRotation = true;
-                    //Echo($"precMov: {preciseMoving}");
                     mass = Cockpit.CalculateShipMass().PhysicalMass;
                     thrust = (mass * acceleration) / ThrustersInGroup;
                     maxDecel = maxBreakingThrust*1.5f / mass; // 1.5 is the dampeners modifier
                     Runtime.UpdateFrequency = UpdateFrequency.Update1;
                     PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
-                    //Movement(Cockpit, ThrusterGroup, totRemaining, remainingTB);
                 }
 
                 //check for stopping status (finished printing)
@@ -1059,7 +1044,7 @@ namespace IngameScript
                     }
                     //foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
                     Echo($"Ship Printed!\n{toggleAfterFinish}");
-                    IGC.SendBroadcastMessage(BroadcastTag, $"\nShip Printed!\nToggle: {toggleAfterFinish}");
+                    IGC.SendBroadcastMessage(BroadcastTag, $"\nShip Printed!\nToggle: {toggleAfterFinish}\nFly safe beratna!");
                     return;
                 }
                 if (safetyDistanceStop >= maxDistanceStop)
@@ -1094,6 +1079,84 @@ namespace IngameScript
                 && !supportBlocks.Contains(b)
                 );
         }
+        public IEnumerable<double> StartPrinting()
+        {
+            starterString.Clear();
+            starterString.Append(
+                $"{lcd_divider}\nHold your cockpit beratna...\n");
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StartLog", starterString.ToString()));
+            yield return 1 / ticksToSeconds;
+            starterString.Append($"RPA is booting up...\n{ lcd_divider}\n");
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StartLog", starterString.ToString()));
+            yield return 0.5/ticksToSeconds;
+            for (int i = 0; i < 3; i++)
+            {
+                yield return 0.5/ticksToSeconds;
+                starterString.Append($"{variables[i]}\n");
+                IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StartLog", starterString.ToString()));
+            }
+            yield return 1/ticksToSeconds;
+            starterString.Replace(variables[0], variables[0] + variablesStatus[0]);
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StartLog", starterString.ToString()));
+            yield return 0.5/ticksToSeconds;
+            LoadStoredData();
+            starterString.Replace(variables[0] + variablesStatus[0], variables[0] + variablesStatus[1]);
+            starterString.Replace(variables[1], variables[1] + variablesStatus[0]);
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StartLog", starterString.ToString()));
+            yield return 0.5/ ticksToSeconds;
+            firstRotation = true;
+            setupCommand = false;
+            aligningBool = true;
+            time = 0;
+            totBlocks = TotalBlocks();
+            Wait = ImWait;
+            remainingTB = integrityListT0.Count;
+            totRemaining = Projector.RemainingBlocks - refreshBlocks;
+            safetyDistanceStop = Math.Round(Vector3D.Distance(rotorPosition, Cockpit.GetPosition()), 2);
+            imMoving = false;
+            starterString.Replace(variables[1] + variablesStatus[0], variables[1] + variablesStatus[1]);
+            starterString.Replace(variables[2], variables[2] + variablesStatus[0]);
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StartLog", starterString.ToString()));
+            yield return 0.5 / ticksToSeconds;
+            while (aligningBool)
+            {
+                yield return 5 * multTicks * ticksToSeconds;
+                ImAligning();
+            }
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StartLog", starterString.ToString()));
+            yield return 0.5 / ticksToSeconds;
+            starterString.Replace(variables[2] + variablesStatus[0], variables[2] + variablesStatus[1]);
+            starterString.Append($"\n{lcd_divider}\n{variables[3]}");
+            timerSM.Start();
+            statusLCDStateMachine.AutoStart = true;
+            timerSM.AutoStart = true;
+            statusLCDStateMachine.Start();
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StartLog", starterString.ToString()));
+            yield return 1 / ticksToSeconds;
+            starterString.Append($"\n{variables[4]}");
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StartLog", starterString.ToString()));
+            yield return 1/ ticksToSeconds;
+            remainingTB = integrityListT0.Count;
+            totRemaining = Projector.RemainingBlocks - refreshBlocks;
+            safetyDistanceStop = Math.Round(Vector3D.Distance(rotorPosition, Cockpit.GetPosition()), 2);
+            mass = Cockpit.CalculateShipMass().PhysicalMass;
+            starterString.Append($"\n{variables[5]}");
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StartLog", starterString.ToString()));
+            yield return 1/ ticksToSeconds;
+            starterString.Append($"\n{variables[6]}");
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("StartLog", starterString.ToString()));
+            yield return 1 / ticksToSeconds;
+            PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
+            activation = true;
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
+            yield return 10 * ticksToSeconds;
+            starterPrint.AutoStart = false;
+            starterPrint.Stop();
+            starterString.Clear();
+            printing = true;
+            startCommand = false;
+            yield break;
+        }
         void ImListening(IMyShipController Cockpit, IMyProjector Projector)
         {
             while (_myBroadcastListener.HasPendingMessage)
@@ -1104,25 +1167,16 @@ namespace IngameScript
                     switch (myIGCMessage.Data.ToString())
                     {
                         case "start":
-                            LoadStoredData();
-                            firstRotation = true;
-                            setupCommand = false;
-                            aligningBool = true;
-                            time = 0;
-                            //PrintingBlocksListCreation();
-                            totBlocks = TotalBlocks();
-                            Wait = ImWait;
-                            int remainingTB = integrityListT0.Count;
-                            totRemaining = Projector.RemainingBlocks - refreshBlocks;
-                            safetyDistanceStop = Math.Round(Vector3D.Distance(rotorPosition, Cockpit.GetPosition()), 2);
-                            imMoving = false;
-                            mass = Cockpit.CalculateShipMass().PhysicalMass;
-                            PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
-                            timerSM.Start();
-                            statusLCDStateMachine.AutoStart = true;
-                            timerSM.AutoStart = true;
-                            statusLCDStateMachine.Start();
-                            printing = true; //start the print-->for the main
+                            if(startCommand)
+                            {
+                                Stop();
+                                printing = false; //stop the print-->for the main
+                                startCommand = false;
+                            }
+                            startCommand = true;
+                            starterPrint.AutoStart = true;
+                            starterPrint.Start();
+                            Runtime.UpdateFrequency = UpdateFrequency.Update1;
                             break;
 
                         case "projector":
@@ -1132,6 +1186,8 @@ namespace IngameScript
                         case "stop":
                             Stop();
                             printing = false; //stop the print-->for the main
+                            startCommand = false;
+                            skip = false;
                             IGC.SendBroadcastMessage(BroadcastTag, "Stopping command processed.");
                             break;
 
@@ -1146,7 +1202,6 @@ namespace IngameScript
                         case "init_d":
                             CustomData();
                             SetupBlocks();
-                            
                             break;
                     }
                 }
@@ -1181,9 +1236,6 @@ namespace IngameScript
                         ToggleOn(toggleList);
                         IGC.SendBroadcastMessage(BroadcastTag, "Toggle On blocks, except for Epsteins and Tools");
                         IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
-                        IGC.DisableBroadcastListener(_myBroadcastListener);
-                        _myBroadcastListener = IGC.RegisterBroadcastListener(BroadcastTag);
-                        _myBroadcastListener.SetMessageCallback(BroadcastTag);
                     }
                     else if (command == "start")
                     {
@@ -1219,6 +1271,12 @@ namespace IngameScript
                     string command = tuple.Item1;
                     if (command == "skip")
                     {
+                        activation = false;
+                        printing = false;
+                        startCommand = false;
+                        starterPrint.AutoStart = false;
+                        starterPrint.Stop();
+                        IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
                         printAfterSkip = tuple.Item2;
                         Runtime.UpdateFrequency = UpdateFrequency.Update1;
                         skipStartingDist = Me.GetPosition();
@@ -1373,7 +1431,7 @@ namespace IngameScript
                 }
             }
         }
-        public void ImAligning(List<IMyThrust> ThrusterGroup)
+        public void ImAligning()
         {
             if (rotorMatrix == MatrixD.Zero)
             {
@@ -1391,7 +1449,7 @@ namespace IngameScript
                 var desiredForward = -rotorOrientation.Up;
                 var desiredUp = Vector3D.Zero; // IF the ROLL angle is important use " -rotorOrientation.Forward";
                 GetRotationAnglesSimultaneous(desiredForward, desiredUp, Cockpit.WorldMatrix, out yaw, out pitch, out roll);
-                ApplyGyroOverride(pitch, yaw, roll, imGyroList, Cockpit.WorldMatrix, ThrusterGroup);
+                ApplyGyroOverride(pitch, yaw, roll, imGyroList, Cockpit.WorldMatrix);
             }
         }
 
@@ -1660,7 +1718,6 @@ namespace IngameScript
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("ActiveWelding", activeOuput.ToString()));
             activeOuput.Clear();
         }
-
         public IEnumerable<double> StatusLCD()
         {
             while (integrityListT0 != null && integrityListT0.Count > 0 && printing && !firstRotation)
@@ -1668,7 +1725,7 @@ namespace IngameScript
                 List<IMyTerminalBlock> tempList = integrityListT0.ToList();
                 for (int i = 0; i < tempList.Count; i++)
                 {
-                    yield return 25 * multTicks * ticksToSeconds;
+                    yield return 10 * multTicks * ticksToSeconds;
                     var block = tempList[i];
                     string name = block.CustomName;
                     if (name.Length > 25)
@@ -1689,11 +1746,24 @@ namespace IngameScript
             Projector.Enabled = !Projector.Enabled;
             IGC.SendBroadcastMessage(BroadcastTag, "Projector On/Off \n");
         }
-        
         public void PreciseMovement(IMyShipController Cockpit, List<IMyThrust> ThrusterGroup, int totRemaining, 
             int remainingTB, Vector3D startingPosition)
         {
-            //Echo($"function, precMov: {preciseMoving}");
+            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"OUT==moving: {imMoving}\nweld: {weldWhileMoving}\ntoggle: {weldersToggleOn}"));
+            //Echo($"OUT==moving\n");
+            if (!weldWhileMoving && weldersToggleOn)
+            {
+                weldersToggleOn = false;
+                //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"IN==moving: {imMoving}\nweld: {weldWhileMoving}\ntoggle: {weldersToggleOn}"));
+                WeldersToggle(weldersToggleOn);
+                //Echo($"IN==moving: {imMoving}\nweld: {weldWhileMoving}\ntoggle: {weldersToggleOn}");
+            }
+            else if (weldWhileMoving && !weldersToggleOn)
+            {
+                weldersToggleOn = true;
+                WeldersToggle(weldersToggleOn);
+            }
+            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"start pos: {startingPosition}\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}"));
             Wait = ImWait;
             safetyDistanceStop = Math.Round(Vector3D.Distance(rotorPosition, Me.GetPosition()), 2);
             if(!skip) PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
@@ -1702,6 +1772,7 @@ namespace IngameScript
                 t.ThrustOverride = thrust;
                 //Echo($"thrust: {t.ThrustOverride}");
             }
+            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"vel: {Cockpit.GetShipVelocities().LinearVelocity}"));
             //instant speed
             Vector3D WorldVelocity = Cockpit.GetShipVelocities().LinearVelocity;
             velocity = WorldVelocity.Dot(Cockpit.WorldMatrix.Backward); //towards backward direction
@@ -1709,8 +1780,8 @@ namespace IngameScript
             var t_stop = velocity / maxDecel + 1d/60d;//1d/60d is to take ticks time into account
             //stopping distance
             var s_stop = velocity * t_stop - maxDecel * t_stop * t_stop / 2;
-            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
-            if ((Vector3D.Distance(startingPosition, Me.GetPosition())+s_stop) >= DroneMovDistance-0.3d)
+            //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"start pos: {startingPosition}\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}"));
+            if ((Vector3D.Distance(startingPosition, Me.GetPosition())+s_stop) >= DroneMovDistance-0.2d)
             {
                 foreach (var bt in ThrusterGroup)
                 {
@@ -1718,22 +1789,16 @@ namespace IngameScript
                     //Echo($"thrust: {bt.ThrustOverride}");
                 }
                 //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
-            }
-            if(Vector3D.Distance(startingPosition, Me.GetPosition())>=DroneMovDistance-0.2d)
-            {
-                //velocity = Cockpit.GetShipSpeed();
-                //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
-                if (Math.Abs(velocity)<0.1f)
+                if (Math.Abs(velocity) < 0.05f)
                 {
-                    //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"\ndistance: {Vector3D.Distance(startingPosition, Me.GetPosition())}\nvelocity: {velocity}\nt_stop: {t_stop}"));
                     preciseMoving = false;
-                    imMoving = false;
                     Wait = ImWait;
                     aligningBool = true;
+                    firstRotation = true;
+                    //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"prec mov: {preciseMoving}"));
                 }
             }
         }
-
         public void Stop()
         {
             List<IMyThrust> allThrusters = new List<IMyThrust>();
@@ -1798,8 +1863,7 @@ namespace IngameScript
             roll = -axis.Z * angle;
             //Echo($"pitch: {pitch}\nyaw: {yaw}\nz: {roll}");
         }
-
-        void ApplyGyroOverride(double pitchSpeed, double yawSpeed, double rollSpeed, List<IMyGyro> gyroList, MatrixD worldMatrix, List<IMyThrust> ThrusterGroup)
+        void ApplyGyroOverride(double pitchSpeed, double yawSpeed, double rollSpeed, List<IMyGyro> gyroList, MatrixD worldMatrix)
         {
             //Echo("applygyro");
             GridTerminalSystem.GetBlocksOfType(imGyroList);
@@ -1830,10 +1894,11 @@ namespace IngameScript
                         foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
                         timeStep = 0;
                     }
-                    else if (!setupCommand)
-                    {
-                        weldersToggleOn = true;
-                        WeldersToggle(weldersToggleOn);
+                    else if (!setupCommand && !startCommand)
+                    {                          
+                        activation = true;
+                        Activation(activation);
+                        //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"activ: {activation}\nwelders: {weldersToggleOn}"));
                         //IGC.SendBroadcastMessage(BroadcastTag, "Drone is aligned.");
                         PrintingResults(totRemaining, remainingTB, safetyDistanceStop);
                         foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
@@ -1841,11 +1906,15 @@ namespace IngameScript
                         Wait = ImWait;
                         aligningBool = false;
                         firstRotation = true;
-                        //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", "asdlo"));
-                        activation = true;
+                        //IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, string>("debug", $"activ: {activation}\nwelders: {weldersToggleOn}"));
                         imMoving = false;
-                        IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
-                        Runtime.UpdateFrequency = UpdateFrequency.Update1;
+                    }
+                    else if(startCommand)
+                    {
+                        foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
+                        timeStep = 0;
+                        
+                        aligningBool = false;
                     }
                 }
             }
@@ -1872,12 +1941,8 @@ namespace IngameScript
                 IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
                 foreach (var gyro in imGyroList) { gyro.GyroOverride = false; }
                 timeStep = 0;
-                IGC.DisableBroadcastListener(_myBroadcastListener);
-                _myBroadcastListener = IGC.RegisterBroadcastListener(BroadcastTag);
-                _myBroadcastListener.SetMessageCallback(BroadcastTag);
             }
         }
-
         public static Vector3D SafeNormalize(Vector3D a)
         {
             if (Vector3D.IsZero(a))
@@ -1888,11 +1953,15 @@ namespace IngameScript
 
             return Vector3D.Normalize(a);
         }
-
         public void WeldersToggle(bool toggle)
         {
             string myString = "weldersToggle";
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>(myString, toggle));
+        }
+        public void Activation(bool activation)
+        {
+            string myString = "activation";
+            IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>(myString, activation));
         }
         internal sealed class Profiler
         {
@@ -1985,7 +2054,6 @@ namespace IngameScript
                 }
             }
         }
-
         public class SimpleTimerSM
         {
             public readonly Program Program;
@@ -2055,16 +2123,19 @@ namespace IngameScript
                 if (sequenceSM == null)
                     return;
                 //multiplying it by 60 returns the number of ticks from last run (60 ticks per second)
+                // game time between the previous PB run and now, subtract it from the waiting time.
                 SequenceTimer -= Program.Runtime.TimeSinceLastRun.TotalSeconds * 60;
 
                 if (SequenceTimer > 0)
                     return;
-
+                // executes the next part in the sequence.
+                // returns true if `yield return` was used.
+                // returns false if it reached the end or `yield break` was used.
                 bool hasValue = sequenceSM.MoveNext();
 
                 if (hasValue)
                 {
-                    SequenceTimer = sequenceSM.Current;
+                    SequenceTimer = sequenceSM.Current; //value from yield return
 
                     if (SequenceTimer <= -0.5)
                         hasValue = false;
@@ -2075,7 +2146,7 @@ namespace IngameScript
                     if (AutoStart)
                         SetSequenceSM(Sequence);
                     else
-                        SetSequenceSM(null);
+                        SetSequenceSM(null); //cleanup
                 }
             }
 

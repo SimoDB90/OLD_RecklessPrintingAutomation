@@ -2,10 +2,13 @@
 -----------
 
 "Robotic Printing Automation" by Reckless
-Current Version: V 4.1.1
+Current Version: V 4.1.2
 Script == STATION
 Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 
+-------------Changelog 4.1.2 (x/11/2023)----------------------------------
+-skip command now turns off welders and fancy group;
+-Improved start command to avoid overheating;
 -------------Changelog 4.1.1 (5/11/2023)----------------------------------
 -small improved to performance;
 -------------Changelog 4.1.0 (4/11/2023)----------------------------------
@@ -28,9 +31,6 @@ Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 -Improved Runtime check logic;
 -Proved some logics to initial check on version and init;
 -Fixed a crash if [RPA-Fancy] group is not present;
--------------Changelog 4.0.1 (15/10/2023)----------------------------------
--Bug fix on init of the drone;
--Bug fix on setup command;
 
 ------------- Needed blocks for station:------------------------------------
 1)1 LCD "[RPA].LOG"

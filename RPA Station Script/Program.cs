@@ -34,8 +34,12 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        readonly string stationVersion = "V: 4.1.1";
+        readonly string stationVersion = "V: 4.1.2";
         const string lcd_changelog =
+            "CHANGELOG VERSION 4.1.2 (x/11/2023):\n" +
+            "-skip command now turns off welders and fancy group;\r\n" +
+            "-Improved start command to avoid overheating;\n" +
+            "--------------------------------\n" +
             "CHANGELOG VERSION 4.1.1 (5/11/2023):\n" +
             "-small improved to performance;\n" +
             "--------------------------------\n" +
@@ -53,10 +57,7 @@ namespace IngameScript
             "-Fixed a bug that prevented to send setup;\n" +
             "-Fixed(?) a bug that stops, sometimes, the rotor;\n" +
             "-Added a QoL command: motion_print, to toggle\nprintwhilemoving variable;\n" +
-            "-Improved runtime of script;\n" +
-            "--------------------------------\n" +
-            "CHANGELOG VERSION 4.0.3 (23/10/2023):\n" +
-            "-Fixed a bug with \"weldWhileMoving\";\n"
+            "-Improved runtime of script;\n"
             ;
 
         string droneVersion;
@@ -573,7 +574,7 @@ namespace IngameScript
                 return;
             }
         }
-        //skip the actual block been welded and delete it from the list of blocks to weld
+        //ignore the actual block been welded and delete it from the list of blocks to weld
         public void IgnoreOne()
         {
             if (correctVersion && setupAlreadySent && !initializedRequired)
@@ -1029,8 +1030,6 @@ namespace IngameScript
         public void Main(string argument, UpdateType updateSource)
         {
             profiler.Run();
-            
-            
             //debug.WriteText($"AverageRT(ms): {averageRT}");
             if ((updateSource & (UpdateType.Trigger | UpdateType.Terminal)) > 0) // run by a terminal action
             {
@@ -1069,7 +1068,7 @@ namespace IngameScript
                 {
                     return;
                 }
-                //debug.WriteText($"Average Station RT: {averageRT}");
+                //debug.WriteText($"act: {activation}");
                 ImListening();
                 //debug.WriteText($"AverageRT(ms): {averageRT}");
             }
@@ -1258,6 +1257,11 @@ namespace IngameScript
                         }
 
                     }
+                    //LOG CREATION DURING START, TO AVOID SENDING ROTOR INFOS!
+                    if(log == "StartLog")
+                    {
+                        LCDLog.WriteText($"{HeaderCreation()} \n{status}");
+                    }
                     if (log == "StatusWriting")
                     {
                         try
@@ -1306,17 +1310,17 @@ namespace IngameScript
                 
                 if (myIGCMessage_fromDrone.Tag == BroadcastTag && myIGCMessage_fromDrone.Data is MyTuple<string, bool>)
                 {
-                    
                     var tuple = (MyTuple<string, bool>)myIGCMessage_fromDrone.Data;
                     string myString = tuple.Item1;
+                    //debug.WriteText($"myString: {myString}");
                     if (myString == "activation")
                     {
                         //debug.WriteText($"here");
                         activation = tuple.Item2;
-                        //Echo($"activation: {activation}");
+                        //debug.CustomData += $"\nasd activation: {activation}";
                         if (activation)
                         {
-                            //debug.WriteText($"activation: {activation}");
+                            //debug.CustomData+=$"\nasd activation: {activation}";
                             Rotor.RotorLock = false;
                             Rotor.Enabled = true;
                             //debug.WriteText($"rotor: {Rotor.Enabled}");
@@ -1345,7 +1349,7 @@ namespace IngameScript
                             DeactivateAll();
                         }
                     }
-                    else if (myString == "weldersToggle")
+                    if (myString == "weldersToggle")
                     {
                         bool weldersToggle = tuple.Item2;
                         if (!weldersToggle)
@@ -1361,7 +1365,7 @@ namespace IngameScript
                             }
                         }
                     }
-                    else if (myString == "DroneSetup")
+                    if (myString == "DroneSetup")
                     {
                         bool DroneSetup = tuple.Item2;
                         //Echo($"setup: {DroneSetup}");
@@ -1370,7 +1374,7 @@ namespace IngameScript
                             return;
                         }
                     }
-                    else if (myString == "initRequired")
+                    if (myString == "initRequired")
                     {
                         initializedRequired = tuple.Item2;
                         if (initializedRequired)
@@ -1378,7 +1382,7 @@ namespace IngameScript
                             return;
                         }
                     }
-                    else if (myString == "SetupSent")
+                    if (myString == "SetupSent")
                     {
                         setupAlreadySent = tuple.Item2;
                     }
