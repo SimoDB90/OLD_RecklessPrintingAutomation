@@ -302,7 +302,6 @@ namespace IngameScript
                 timerSM.Stop();
                 statusLCDStateMachine.Stop();
                 activation = false;
-                starterPrint.AutoStart = false;
                 starterPrint.Stop();
                 IGC.SendBroadcastMessage(BroadcastTag, newRotorSpeed = 0);
                 IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
@@ -1150,7 +1149,6 @@ namespace IngameScript
             activation = true;
             IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
             yield return 10 * ticksToSeconds;
-            starterPrint.AutoStart = false;
             starterPrint.Stop();
             starterString.Clear();
             printing = true;
@@ -1174,7 +1172,6 @@ namespace IngameScript
                                 startCommand = false;
                             }
                             startCommand = true;
-                            starterPrint.AutoStart = true;
                             starterPrint.Start();
                             Runtime.UpdateFrequency = UpdateFrequency.Update1;
                             break;
@@ -1274,7 +1271,6 @@ namespace IngameScript
                         activation = false;
                         printing = false;
                         startCommand = false;
-                        starterPrint.AutoStart = false;
                         starterPrint.Stop();
                         IGC.SendBroadcastMessage(BroadcastTag, new MyTuple<string, bool>("activation", activation));
                         printAfterSkip = tuple.Item2;
