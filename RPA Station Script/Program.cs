@@ -34,8 +34,12 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        readonly string stationVersion = "V: 4.1.2";
+        readonly string stationVersion = "V: 4.1.3";
         const string lcd_changelog =
+            "CHANGELOG VERSION 4.1.3 (26/02/2024):\n" +
+            "-added support for toolcore welders;\r\n" +
+            "-christo was here;\n" +
+            "--------------------------------\n" +
             "CHANGELOG VERSION 4.1.2 (x/11/2023):\n" +
             "-skip command now turns off welders and fancy group;\r\n" +
             "-Improved start command to avoid overheating;\n" +
@@ -77,12 +81,15 @@ namespace IngameScript
         const string TagDefault = "[RPA]";
         string TagCustom;
 
-        readonly List<IMyShipWelder> WelderList = new List<IMyShipWelder>();
+        // christo was here.
+        // welders have to be IMyTerminalBlocks now because Toolcore. How lame.
+        readonly List<IMyTerminalBlock> WelderList = new List<IMyTerminalBlock>();
         readonly List<IMyTextPanel> LcdList = new List<IMyTextPanel>();
 
         //stuff for rotor control
         double farestWelderDistance = 0;
-        IMyShipWelder farestWelder;
+        IMyTerminalBlock farestWelder;
+
         double welderAngle = 0;//angle between projected farest welder and rotor
         int welderSign; //to check is parallel or antiparallel to forward or right
         bool welder_forward; //if welder is oriented as the rotor.Forward
@@ -374,6 +381,34 @@ namespace IngameScript
             }
             catch { }
         }
+
+        // christo was here.
+        public void toggleWelders(List<IMyTerminalBlock> Welders, bool State)
+        {
+            foreach (var welder in WelderList)
+            {
+
+                try
+                { // maybe it's a welder?
+                    (welder as IMyShipWelder).Enabled = State;
+                }
+                catch
+                {
+                    try
+                    { // lol guess not, must be a sorter...
+                        (welder as IMyConveyorSorter).Enabled = State;
+                    }
+                    catch
+                    {
+                        // well if that didn't work, nothing will. 
+                        // so do nothing
+                    }
+                }
+            }
+        }
+
+
+
         public void Music()
         {
             bool stopPlaying = _commandLine.Switch("off");
@@ -966,9 +1001,22 @@ namespace IngameScript
 
             //WELDERS SETUP
             List<IMyBlockGroup> WeldersGroupList = new List<IMyBlockGroup>();
-            List<IMyShipWelder> taggedWelders = new List<IMyShipWelder>();
+            List<IMyTerminalBlock> taggedWelders = new List<IMyTerminalBlock>();
             GridTerminalSystem.GetBlockGroups(WeldersGroupList, x => x.Name.Contains(TagCustom));
-            GridTerminalSystem.GetBlocksOfType(WelderList);
+
+            // christo was here.
+            // get regular vanilla welders
+            GridTerminalSystem.GetBlocksOfType<IMyShipWelder>(WelderList);
+            // also get annoying af toolcore weapons
+            GridTerminalSystem.GetBlocksOfType<IMyTerminalBlock>(WelderList, x => 
+                // is actually a sorter
+                x.BlockDefinition.ToString().Contains("MyObjectBuilder_ConveyorSorter/")
+                &&
+                // but no, it's a welder lol
+                x.BlockDefinition.ToString().Contains("Welder")
+            );
+
+
             GridTerminalSystem.GetBlocksOfType(taggedWelders, x => x.CustomName.Contains(TagCustom));
             //Echo($"{taggedWelders.Count} Welders");
             if (WelderList != null && WelderList.Count > 0 && WeldersGroupList.Count == 0)
@@ -1168,10 +1216,9 @@ namespace IngameScript
                 {
                     lcd.Enabled = false;
                 }
-                foreach (var welder in WelderList)
-                {
-                    welder.Enabled = false;
-                }
+
+                toggleWelders(WelderList, false);
+
                 foreach (var light in FancyLightList)
                 {
                     light.Enabled = false;
@@ -1326,7 +1373,9 @@ namespace IngameScript
                             //debug.WriteText($"rotor: {Rotor.Enabled}");
                             foreach (var welder in WelderList)
                             {
-                                welder.Enabled = true;
+
+                                toggleWelders(WelderList, true);
+
                             }
                             try
                             {
@@ -1351,19 +1400,9 @@ namespace IngameScript
                     }
                     if (myString == "weldersToggle")
                     {
-                        bool weldersToggle = tuple.Item2;
-                        if (!weldersToggle)
-                        {
-                            foreach (var welder in WelderList)
-                            { welder.Enabled = false; }
-                        }
-                        else if (weldersToggle)
-                        {
-                            foreach (var w in WelderList)
-                            {
-                                w.Enabled = true;
-                            }
-                        }
+
+                        toggleWelders(WelderList, tuple.Item2);
+
                     }
                     if (myString == "DroneSetup")
                     {
@@ -1387,6 +1426,7 @@ namespace IngameScript
                         setupAlreadySent = tuple.Item2;
                     }
                 }
+
             }
         }
         internal sealed class Profiler

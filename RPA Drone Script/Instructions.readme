@@ -2,10 +2,13 @@
 -----------
 
 "Robotic Printing Automation" by Reckless
-Current Version: V 4.1.2
+Current Version: V 4.1.3
 Script == DRONE
 Guide's link: https://steamcommunity.com/sharedfiles/filedetails/?id=2965554098
 
+-------------Changelog 4.1.3 (26/02/2024)----------------------------------
+-added support for toolcore welders;
+-christo was here;
 -------------Changelog 4.1.2 (x/11/2023)----------------------------------
 -skip command now turns off welders and fancy group;
 -Improved start command to avoid overheating;
